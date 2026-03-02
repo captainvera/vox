@@ -25,7 +25,7 @@ def test_recorder_accepts_on_chunk_param(mock_sd):
 def test_recorder_on_chunk_default_is_none(mock_sd):
     from vox.recorder import Recorder
     r = Recorder(sample_rate=16_000)
-    assert r._on_chunk is None
+    assert r.on_chunk is None
 
 
 def test_recorder_on_chunk_called_with_audio(mock_sd):

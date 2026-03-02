@@ -14,6 +14,7 @@ Subcommands:
 from __future__ import annotations
 
 import logging
+import logging.handlers
 import subprocess
 import sys
 
@@ -54,11 +55,23 @@ def _run_foreground() -> None:
     from .recorder import Recorder
     from .transcriber import VoxtralTranscriber
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(name)s] %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    if _is_app_bundle():
+        # Rotating log: 5 MB max, keep 3 backups.
+        from .daemon import LOG_FILE
+
+        handler = logging.handlers.RotatingFileHandler(
+            LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3,
+        )
+        handler.setFormatter(logging.Formatter(
+            "%(asctime)s [%(name)s] %(message)s", datefmt="%H:%M:%S",
+        ))
+        logging.basicConfig(level=logging.INFO, handlers=[handler])
+    else:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s [%(name)s] %(message)s",
+            datefmt="%H:%M:%S",
+        )
 
     config = Config.load()
     app = VoxApp(

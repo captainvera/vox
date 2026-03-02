@@ -256,6 +256,16 @@ def _create_app_bundle() -> Path:
     # Log redirection is handled in __main__.py (detects .app context).
     _compile_launcher(macos)
 
+    # Force Launch Services to re-read Info.plist — without this, macOS
+    # caches the old plist and changes (e.g. adding an icon) don't appear.
+    _LSREGISTER = (
+        "/System/Library/Frameworks/CoreServices.framework"
+        "/Versions/A/Frameworks/LaunchServices.framework"
+        "/Versions/A/Support/lsregister"
+    )
+    if os.path.exists(_LSREGISTER):
+        subprocess.run([_LSREGISTER, "-f", str(APP_PATH)], capture_output=True)
+
     return APP_PATH
 
 
