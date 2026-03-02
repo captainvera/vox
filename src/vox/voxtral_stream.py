@@ -183,7 +183,10 @@ class VoxtralStream:
         """Accumulate text and fire callback."""
         self._accumulated.append(text)
         self._tokens_emitted += 1
-        self._on_token(text)
+        try:
+            self._on_token(text)
+        except Exception:
+            log.exception("on_token callback failed for %r", text)
 
     def _drain_audio(self) -> np.ndarray:
         """Drain audio buffer (called from processing thread)."""
@@ -432,6 +435,7 @@ class VoxtralStream:
                     continue
 
                 self._decode_available()
+                mx.clear_cache()
                 time.sleep(0.02)
         except Exception:
             log.exception(

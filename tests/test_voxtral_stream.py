@@ -149,6 +149,18 @@ def test_on_token_callback_fired(mock_model):
     cb.assert_called_once_with("hello")
 
 
+def test_emit_token_survives_callback_error(mock_model):
+    """_emit_token should not crash if on_token callback raises."""
+
+    def bad_callback(text):
+        raise RuntimeError("callback failed")
+
+    stream = _make_stream(mock_model, on_token=bad_callback)
+    stream._emit_token("hello")  # should not raise
+    assert stream._accumulated == ["hello"]
+    assert stream._tokens_emitted == 1
+
+
 def test_drain_audio_returns_buffered_data(mock_model):
     """_drain_audio should return all fed audio and clear the buffer."""
     stream = _make_stream(mock_model)

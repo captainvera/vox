@@ -323,17 +323,46 @@ def test_stop_streaming_clears_recorder_on_chunk(
 # -- Keystroke output --
 
 
-def test_on_stream_token_calls_keystroke(config, recorder, formatter, mock_sd):
-    """_on_stream_token should type text at cursor via _keystroke."""
+def test_on_stream_token_queues_text(config, recorder, formatter, mock_sd):
+    """_on_stream_token should queue non-empty text for async keystroke."""
     transcriber = FakeStreamingTranscriber()
     transcriber.load()
     app = _make_app(config, recorder, formatter, transcriber, mode="realtime")
     app._state = "streaming"
 
-    with patch.object(app, "_keystroke") as mock_ks:
-        app._on_stream_token("hello")
+    app._on_stream_token("hello")
 
-    mock_ks.assert_called_once_with("hello")
+    assert not app._keystroke_queue.empty()
+    assert app._keystroke_queue.get_nowait() == "hello"
+
+
+def test_on_stream_token_skips_empty(config, recorder, formatter, mock_sd):
+    """_on_stream_token should skip empty tokens (silence)."""
+    transcriber = FakeStreamingTranscriber()
+    transcriber.load()
+    app = _make_app(config, recorder, formatter, transcriber, mode="realtime")
+    app._state = "streaming"
+
+    app._on_stream_token("")
+
+    assert app._keystroke_queue.empty()
+
+
+def test_keystroke_worker_processes_queue(config, recorder, formatter, mock_sd):
+    """_keystroke_worker should consume queue and call _keystroke."""
+    app = _make_app(
+        config, recorder, formatter, FakeStreamingTranscriber(), mode="realtime"
+    )
+
+    with patch.object(app, "_keystroke") as mock_ks:
+        app._keystroke_queue.put("hello")
+        app._keystroke_queue.put("world")
+        app._keystroke_queue.put(None)  # sentinel
+        app._keystroke_worker()
+
+    assert mock_ks.call_count == 2
+    mock_ks.assert_any_call("hello")
+    mock_ks.assert_any_call("world")
 
 
 def test_keystroke_calls_osascript(config, recorder, formatter, mock_sd):

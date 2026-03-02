@@ -5,6 +5,7 @@ from __future__ import annotations
 import atexit
 import logging
 import os
+import queue
 import signal
 import subprocess
 import threading
@@ -169,6 +170,8 @@ class VoxApp(rumps.App):
         self._state = LOADING
         self._hotkey_active = False
         self._stream: TranscriptionStream | None = None
+        self._keystroke_queue: queue.Queue[str | None] = queue.Queue()
+        self._keystroke_thread: threading.Thread | None = None
 
         # -- menu items --
         self._status_item = rumps.MenuItem("Loading model...")
@@ -312,6 +315,11 @@ class VoxApp(rumps.App):
         )
         # Bridge recorder audio callback → stream.feed
         self._recorder._on_chunk = self._stream.feed
+        # Start async keystroke worker
+        self._keystroke_thread = threading.Thread(
+            target=self._keystroke_worker, daemon=True,
+        )
+        self._keystroke_thread.start()
         self._set_state(STREAMING)
         self._recorder.start()
         log.info("Recorder started, streaming active")
@@ -320,10 +328,12 @@ class VoxApp(rumps.App):
         """Called by the streaming transcriber for each decoded token.
 
         Runs on the stream's background processing thread.
-        Types text at the cursor via osascript keystroke.
+        Queues non-empty text for async keystroke output.
         """
+        if not text:
+            return
         log.info("token: %r", text)
-        self._keystroke(text)
+        self._keystroke_queue.put(text)
 
     @staticmethod
     def _keystroke(text: str) -> None:
@@ -338,6 +348,24 @@ class VoxApp(rumps.App):
             check=True,
         )
 
+    def _keystroke_worker(self) -> None:
+        """Background thread: consume keystroke queue, type via osascript."""
+        while True:
+            text = self._keystroke_queue.get()
+            if text is None:
+                break
+            try:
+                self._keystroke(text)
+            except Exception:
+                log.exception("Keystroke failed for %r", text)
+
+    def _stop_keystroke_worker(self) -> None:
+        """Signal keystroke worker to exit and wait for it to drain."""
+        self._keystroke_queue.put(None)
+        if self._keystroke_thread and self._keystroke_thread.is_alive():
+            self._keystroke_thread.join(timeout=5)
+        self._keystroke_thread = None
+
     def _stop_streaming(self) -> None:
         """Stop recording, flush remaining tokens, output final text."""
         log.info("Stopping realtime stream")
@@ -348,12 +376,14 @@ class VoxApp(rumps.App):
 
         if stream is None:
             log.warning("_stop_streaming called but no active stream")
+            self._stop_keystroke_worker()
             self._set_state(IDLE)
             return
 
         try:
             text = stream.flush()
             stream.close()
+            self._stop_keystroke_worker()
 
             if self._config.post_processing:
                 text = self._formatter.format(text)
