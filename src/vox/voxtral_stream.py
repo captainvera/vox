@@ -57,8 +57,9 @@ class VoxtralStream:
         self._n_layers = len(model.language_model.layers)
 
         # Audio buffer (thread-safe: written by feed(), read by _process_loop)
+        # Uses a list of chunks (O(1) append) instead of np.append (O(n) copy).
         self._lock = threading.Lock()
-        self._audio_buf = np.zeros(0, dtype=np.float32)
+        self._audio_chunks: list[np.ndarray] = []
 
         # Accumulated text for flush()
         self._accumulated: list[str] = []
@@ -105,7 +106,7 @@ class VoxtralStream:
     def feed(self, chunk: np.ndarray) -> None:
         """Thread-safe. Append audio chunk to internal buffer."""
         with self._lock:
-            self._audio_buf = np.append(self._audio_buf, chunk)
+            self._audio_chunks.append(chunk)
         self._feed_calls += 1
         self._total_audio_samples += len(chunk)
 
@@ -191,9 +192,11 @@ class VoxtralStream:
     def _drain_audio(self) -> np.ndarray:
         """Drain audio buffer (called from processing thread)."""
         with self._lock:
-            new_audio = self._audio_buf
-            self._audio_buf = np.zeros(0, dtype=np.float32)
-        return new_audio
+            chunks = self._audio_chunks
+            self._audio_chunks = []
+        if not chunks:
+            return np.zeros(0, dtype=np.float32)
+        return np.concatenate(chunks)
 
     def _sample(self, logits: mx.array) -> mx.array:
         if self._temperature <= 0:
