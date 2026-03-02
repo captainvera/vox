@@ -28,8 +28,8 @@ from .recorder import Recorder
 
 # Display names for each backend key.
 _BACKEND_LABELS: dict[str, str] = {
-    "voxtral": "Voxtral",
-    "parakeet": "Parakeet",
+    "voxtral": "Voxtral (quality)",
+    "parakeet": "Parakeet (fast)",
 }
 
 # State constants.
