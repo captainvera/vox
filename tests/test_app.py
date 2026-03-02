@@ -131,6 +131,8 @@ def _make_app(config, recorder, formatter, transcriber, **config_overrides):
         patch("vox.app.threading.Thread"),
         patch("vox.app.AppHelper"),
         patch("vox.app._make_toggle_view", return_value=MagicMock()),
+        patch("vox.app._make_disclosure_view", return_value=MagicMock()),
+        patch("vox.app._make_model_view"),
     ):
         return app_mod.VoxApp(
             config=config,
@@ -586,6 +588,8 @@ def test_picker_select_alternative_switches_backend(
     with (
         patch.object(app._config, "save"),
         patch.object(app, "_reload_backend"),
+        patch("vox.app._make_toggle_view", return_value=MagicMock()),
+        patch("vox.app._make_model_view"),
     ):
         app._on_select_backend("parakeet")
     assert app._config.backend == "parakeet"
@@ -601,6 +605,8 @@ def test_picker_select_alternative_triggers_reload(
     with (
         patch.object(app._config, "save"),
         patch.object(app, "_reload_backend") as mock_reload,
+        patch("vox.app._make_toggle_view", return_value=MagicMock()),
+        patch("vox.app._make_model_view"),
     ):
         app._on_select_backend("parakeet")
     mock_reload.assert_called_once()
@@ -616,6 +622,8 @@ def test_picker_select_alternative_updates_labels(
     with (
         patch.object(app._config, "save"),
         patch.object(app, "_reload_backend"),
+        patch("vox.app._make_toggle_view", return_value=MagicMock()),
+        patch("vox.app._make_model_view"),
     ):
         app._on_select_backend("parakeet")
     assert app._backend_active_label == "Parakeet"

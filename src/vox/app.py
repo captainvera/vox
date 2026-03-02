@@ -153,6 +153,97 @@ def _make_toggle_view(menu_item, label, symbol, state, callback):
     return indicator
 
 
+def _make_disclosure_view(menu_item, label, expanded, callback):
+    """Section header with label + right-aligned chevron.
+
+    Matches macOS Wi-Fi "Other Networks" disclosure pattern.
+    Returns the chevron ``NSImageView`` — caller retains to update direction.
+    """
+    width, height = 250, 30
+    pad = 14
+    chev_size = 12
+
+    container = _ClickableView.alloc().initWithFrame_(((0, 0), (width, height)))
+
+    # Section label (secondary / gray).
+    tf = NSTextField.labelWithString_(label)
+    tf.setFont_(NSFont.menuFontOfSize_(13))
+    tf.setTextColor_(NSColor.secondaryLabelColor())
+    tf.sizeToFit()
+    tf.setFrameOrigin_((pad, (height - tf.frame().size.height) / 2))
+
+    # Chevron indicator (right-aligned).
+    symbol = "chevron.up" if expanded else "chevron.down"
+    image = NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+        symbol, None,
+    )
+    chev_x = width - pad - chev_size
+    chev_y = (height - chev_size) / 2
+    chev_iv = NSImageView.alloc().initWithFrame_(
+        ((chev_x, chev_y), (chev_size, chev_size)),
+    )
+    chev_iv.setImage_(image)
+    chev_iv.setContentTintColor_(NSColor.secondaryLabelColor())
+    chev_iv.setImageScaling_(3)  # NSImageScaleProportionallyUpOrDown
+
+    container.addSubview_(tf)
+    container.addSubview_(chev_iv)
+    container._py_callback = callback
+
+    menu_item._menuitem.setView_(container)
+    return chev_iv
+
+
+def _make_model_view(menu_item, label, symbol, callback):
+    """Selectable model item — dim SF Symbol icon + label, no toggle.
+
+    Matches the *inactive* style of ``_make_toggle_view`` (clear background,
+    secondary-label tint).  Clicking fires *callback* once (selection, not
+    toggle).  Used for non-active model rows in the disclosure section.
+    """
+    width, height = 250, 30
+    pad = 14
+    circle_d = 24
+    inset = 4
+
+    container = _ClickableView.alloc().initWithFrame_(((0, 0), (width, height)))
+
+    # Icon area (always inactive — no blue circle).
+    cy = (height - circle_d) / 2
+    icon_bg = NSView.alloc().initWithFrame_(((pad, cy), (circle_d, circle_d)))
+    icon_bg.setWantsLayer_(True)
+    icon_bg.layer().setCornerRadius_(circle_d / 2)
+    icon_bg.layer().setMasksToBounds_(True)
+    icon_bg.layer().setBackgroundColor_(NSColor.clearColor().CGColor())
+
+    image = NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+        symbol, None,
+    )
+    icon_size = circle_d - inset * 2
+    iv = NSImageView.alloc().initWithFrame_(
+        ((inset, inset), (icon_size, icon_size)),
+    )
+    iv.setImage_(image)
+    iv.setImageScaling_(3)
+    iv.setContentTintColor_(NSColor.secondaryLabelColor())
+    icon_bg.addSubview_(iv)
+
+    # Label.
+    tf = NSTextField.labelWithString_(label)
+    tf.setFont_(NSFont.menuFontOfSize_(0))
+    tf.sizeToFit()
+    tf.setFrameOrigin_((
+        pad + circle_d + 8,
+        (height - tf.frame().size.height) / 2,
+    ))
+
+    container.addSubview_(icon_bg)
+    container.addSubview_(tf)
+    container._py_callback = callback
+
+    menu_item._menuitem.setView_(container)
+
+
 class VoxApp(rumps.App):
     """Always-on menubar STT app.
 
@@ -212,8 +303,10 @@ class VoxApp(rumps.App):
         )
 
         self._backend_disclosure = rumps.MenuItem("Other Models")
-        self._backend_disclosure.set_callback(
-            lambda _sender: self._on_toggle_disclosure(),
+        self._disclosure_chevron = _make_disclosure_view(
+            self._backend_disclosure, "Other Models",
+            expanded=False,
+            callback=lambda: self._on_toggle_disclosure(),
         )
 
         # One menu item per alternative backend (all except the active one).
@@ -223,7 +316,10 @@ class VoxApp(rumps.App):
                 continue
             item = rumps.MenuItem(_BACKEND_LABELS[key])
             # Capture `key` in default arg to avoid late-binding closure bug.
-            item.set_callback(lambda _sender, k=key: self._on_select_backend(k))
+            _make_model_view(
+                item, _BACKEND_LABELS[key], "brain",
+                callback=lambda k=key: self._on_select_backend(k),
+            )
             self._backend_alternatives.append(item)
 
         self.menu = [
@@ -559,6 +655,12 @@ class VoxApp(rumps.App):
         self._backend_expanded = not self._backend_expanded
         for item in self._backend_alternatives:
             item._menuitem.setHidden_(not self._backend_expanded)
+        # Update chevron direction.
+        symbol = "chevron.up" if self._backend_expanded else "chevron.down"
+        image = NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+            symbol, None,
+        )
+        self._disclosure_chevron.setImage_(image)
 
     def _on_select_backend(self, backend: str) -> None:
         """Switch to a different backend and reload the model."""
@@ -567,17 +669,46 @@ class VoxApp(rumps.App):
         self._config.backend = backend
         self._config.save()
 
-        # Update active label.
+        # Update active model view.
         self._backend_active_label = _BACKEND_LABELS[backend]
+        _make_toggle_view(
+            self._backend_active, self._backend_active_label, "brain",
+            True, lambda _state: None,
+        )
 
-        # Rebuild alternatives list (exclude the new active backend).
+        # Remove old alternatives from the NSMenu.
+        ns_menu = self._backend_disclosure._menuitem.menu()
+        for item in self._backend_alternatives:
+            ns_menu.removeItem_(item._menuitem)
+
+        # Rebuild alternatives (exclude the now-active backend).
         self._backend_alternatives.clear()
         for key in VALID_BACKENDS:
             if key == backend:
                 continue
             item = rumps.MenuItem(_BACKEND_LABELS[key])
-            item.set_callback(lambda _sender, k=key: self._on_select_backend(k))
+            _make_model_view(
+                item, _BACKEND_LABELS[key], "brain",
+                callback=lambda k=key: self._on_select_backend(k),
+            )
             self._backend_alternatives.append(item)
+
+        # Insert new alternatives into NSMenu right after the disclosure row.
+        disclosure_idx = ns_menu.indexOfItem_(
+            self._backend_disclosure._menuitem,
+        )
+        for i, alt_item in enumerate(self._backend_alternatives):
+            ns_menu.insertItem_atIndex_(
+                alt_item._menuitem, disclosure_idx + 1 + i,
+            )
+            alt_item._menuitem.setHidden_(True)
+
+        # Collapse disclosure section.
+        self._backend_expanded = False
+        image = NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+            "chevron.down", None,
+        )
+        self._disclosure_chevron.setImage_(image)
 
         self._reload_backend()
 
