@@ -328,6 +328,7 @@ class VoxApp(rumps.App):
             self._pp_toggle,
             self._type_toggle,
             self._mode_toggle,
+            None,
             self._backend_active,
             self._backend_disclosure,
             *self._backend_alternatives,
@@ -694,6 +695,7 @@ class VoxApp(rumps.App):
             self._backend_alternatives.append(item)
 
         # Insert new alternatives into NSMenu right after the disclosure row.
+        # Preserve current expanded/collapsed state — don't force-close.
         disclosure_idx = ns_menu.indexOfItem_(
             self._backend_disclosure._menuitem,
         )
@@ -701,14 +703,7 @@ class VoxApp(rumps.App):
             ns_menu.insertItem_atIndex_(
                 alt_item._menuitem, disclosure_idx + 1 + i,
             )
-            alt_item._menuitem.setHidden_(True)
-
-        # Collapse disclosure section.
-        self._backend_expanded = False
-        image = NSImage.imageWithSystemSymbolName_accessibilityDescription_(
-            "chevron.down", None,
-        )
-        self._disclosure_chevron.setImage_(image)
+            alt_item._menuitem.setHidden_(not self._backend_expanded)
 
         self._reload_backend()
 
