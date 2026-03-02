@@ -13,6 +13,9 @@ dependencies = [
 [project.scripts]
 vox = "vox.__main__:main"
 
+[project.optional-dependencies]
+parakeet = ["parakeet-mlx>=0.3.0"]
+
 [dependency-groups]
 dev = ["pytest>=8.0"]
 

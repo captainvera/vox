@@ -44,6 +44,20 @@ def _redirect_to_log() -> None:
     sys.stderr = log_fh
 
 
+def _make_transcriber(config):
+    """Create the transcriber backend based on config.backend.
+
+    Lazy imports so only the selected backend's dependencies are loaded.
+    """
+    if config.backend == "parakeet":
+        from .parakeet import ParakeetTranscriber
+
+        return ParakeetTranscriber(model_name=config.parakeet_model)
+    from .transcriber import VoxtralTranscriber
+
+    return VoxtralTranscriber(model_path=config.model_path)
+
+
 def _run_foreground() -> None:
     """Run the menubar app in the foreground (original behaviour)."""
     if _is_app_bundle():
@@ -53,7 +67,6 @@ def _run_foreground() -> None:
     from .config import Config
     from .formatter import Formatter
     from .recorder import Recorder
-    from .transcriber import VoxtralTranscriber
 
     if _is_app_bundle():
         # Rotating log: 5 MB max, keep 3 backups.
@@ -77,7 +90,7 @@ def _run_foreground() -> None:
     app = VoxApp(
         config=config,
         recorder=Recorder(sample_rate=config.sample_rate),
-        transcriber=VoxtralTranscriber(model_path=config.model_path),
+        transcriber=_make_transcriber(config),
         formatter=Formatter(enabled=config.post_processing),
     )
     app.run()
