@@ -219,9 +219,61 @@ def test_realtime_mode_starts_streaming_on_record(
     assert transcriber.last_stream is not None
 
 
-def test_realtime_mode_stop_flushes_stream(
+def test_stop_streaming_dispatches_to_background(
     config, recorder, formatter, mock_sd
 ):
+    """_stop_streaming should spawn a thread instead of blocking the caller."""
+    transcriber = FakeStreamingTranscriber()
+    transcriber.load()
+    app = _make_app(config, recorder, formatter, transcriber, mode="realtime")
+    app._state = "idle"
+
+    with patch("vox.app.AppHelper"):
+        app._start_recording()
+
+    app._recorder.stop = MagicMock(return_value=np.zeros(0, dtype=np.float32))
+    with (
+        patch("vox.app.AppHelper"),
+        patch("vox.app.threading.Thread") as mock_thread_cls,
+    ):
+        mock_thread = MagicMock()
+        mock_thread_cls.return_value = mock_thread
+        app._stop_streaming()
+
+    # Thread was created targeting _finalize_streaming.
+    mock_thread_cls.assert_called_once()
+    kwargs = mock_thread_cls.call_args[1]
+    assert kwargs["target"] == app._finalize_streaming
+    mock_thread.start.assert_called_once()
+
+
+def test_stop_streaming_sets_transcribing_state(
+    config, recorder, formatter, mock_sd
+):
+    """_stop_streaming should transition to TRANSCRIBING immediately."""
+    transcriber = FakeStreamingTranscriber()
+    transcriber.load()
+    app = _make_app(config, recorder, formatter, transcriber, mode="realtime")
+    app._state = "idle"
+
+    with patch("vox.app.AppHelper"):
+        app._start_recording()
+
+    app._recorder.stop = MagicMock(return_value=np.zeros(0, dtype=np.float32))
+    with (
+        patch("vox.app.AppHelper"),
+        patch("vox.app.threading.Thread") as mock_thread_cls,
+    ):
+        mock_thread_cls.return_value = MagicMock()
+        app._stop_streaming()
+
+    assert app._state == "transcribing"
+
+
+def test_finalize_streaming_flushes_and_cleans_up(
+    config, recorder, formatter, mock_sd
+):
+    """_finalize_streaming should flush, close, stop keystroke worker, pbcopy."""
     transcriber = FakeStreamingTranscriber()
     transcriber.load()
     app = _make_app(config, recorder, formatter, transcriber, mode="realtime")
@@ -232,13 +284,12 @@ def test_realtime_mode_stop_flushes_stream(
 
     stream = transcriber.last_stream
 
-    app._recorder.stop = MagicMock(return_value=np.zeros(0, dtype=np.float32))
     with (
         patch("vox.app.subprocess"),
         patch("vox.app.rumps"),
         patch("vox.app.AppHelper"),
     ):
-        app._stop_streaming()
+        app._finalize_streaming(stream)
 
     assert stream.flushed
     assert stream.closed
@@ -300,7 +351,7 @@ def test_start_streaming_wires_recorder_on_chunk(
 def test_stop_streaming_clears_recorder_on_chunk(
     config, recorder, formatter, mock_sd
 ):
-    """_stop_streaming should clear recorder.on_chunk."""
+    """_stop_streaming should clear recorder.on_chunk on the main thread."""
     transcriber = FakeStreamingTranscriber()
     transcriber.load()
     app = _make_app(config, recorder, formatter, transcriber, mode="realtime")
@@ -311,10 +362,10 @@ def test_stop_streaming_clears_recorder_on_chunk(
 
     app._recorder.stop = MagicMock(return_value=np.zeros(0, dtype=np.float32))
     with (
-        patch("vox.app.subprocess"),
-        patch("vox.app.rumps"),
         patch("vox.app.AppHelper"),
+        patch("vox.app.threading.Thread") as mock_thread_cls,
     ):
+        mock_thread_cls.return_value = MagicMock()
         app._stop_streaming()
 
     assert app._recorder.on_chunk is None
@@ -393,3 +444,66 @@ def test_keystroke_escapes_quotes(config, recorder, formatter, mock_sd):
     args = mock_run.call_args[0][0]
     # The osascript string should have escaped quotes
     assert '\\"' in args[2]
+
+
+# -- Subprocess timeouts --
+
+
+def test_keystroke_has_timeout(config, recorder, formatter, mock_sd):
+    """_keystroke osascript call must have a timeout to prevent hangs."""
+    app = _make_app(
+        config, recorder, formatter, FakeStreamingTranscriber(), mode="realtime"
+    )
+
+    with patch("vox.app.subprocess.run") as mock_run:
+        app._keystroke("hello")
+
+    kwargs = mock_run.call_args[1]
+    assert "timeout" in kwargs
+    assert kwargs["timeout"] > 0
+
+
+def test_paste_at_cursor_has_timeout(config, recorder, formatter, mock_sd):
+    """_paste_at_cursor osascript call must have a timeout."""
+    app = _make_app(
+        config, recorder, formatter, FakeStreamingTranscriber(), mode="realtime"
+    )
+
+    with (
+        patch("vox.app.subprocess.run") as mock_run,
+        patch("vox.app.time.sleep"),
+    ):
+        app._paste_at_cursor()
+
+    kwargs = mock_run.call_args[1]
+    assert "timeout" in kwargs
+    assert kwargs["timeout"] > 0
+
+
+def test_finalize_streaming_pbcopy_has_timeout(
+    config, recorder, formatter, mock_sd
+):
+    """pbcopy in _finalize_streaming must have a timeout."""
+    transcriber = FakeStreamingTranscriber()
+    transcriber.load()
+    app = _make_app(config, recorder, formatter, transcriber, mode="realtime")
+    app._state = "idle"
+
+    with patch("vox.app.AppHelper"):
+        app._start_recording()
+
+    stream = transcriber.last_stream
+
+    with (
+        patch("vox.app.subprocess.run") as mock_run,
+        patch("vox.app.rumps"),
+        patch("vox.app.AppHelper"),
+    ):
+        app._finalize_streaming(stream)
+
+    # Find the pbcopy call.
+    pbcopy_calls = [
+        c for c in mock_run.call_args_list if c[0][0][0] == "pbcopy"
+    ]
+    assert len(pbcopy_calls) == 1
+    assert pbcopy_calls[0][1]["timeout"] > 0

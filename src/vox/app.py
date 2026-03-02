@@ -349,6 +349,7 @@ class VoxApp(rumps.App):
                 f'tell application "System Events" to keystroke "{escaped}"',
             ],
             check=True,
+            timeout=5,
         )
 
     def _keystroke_worker(self) -> None:
@@ -370,7 +371,15 @@ class VoxApp(rumps.App):
         self._keystroke_thread = None
 
     def _stop_streaming(self) -> None:
-        """Stop recording, flush remaining tokens, output final text."""
+        """Stop recording, dispatch flush/output to a background thread.
+
+        Only the fast, non-blocking parts run on the main thread:
+        clear the audio callback, stop the recorder, grab the stream
+        reference.  The expensive work (flush with MLX inference,
+        keystroke worker join, pbcopy, notification) runs in
+        ``_finalize_streaming`` on a daemon thread so the menubar
+        stays responsive.
+        """
         log.info("Stopping realtime stream")
         # Clear callback BEFORE stopping — prevents the sounddevice
         # callback from blocking in feed() during shutdown, which would
@@ -386,6 +395,17 @@ class VoxApp(rumps.App):
             self._set_state(IDLE)
             return
 
+        # Transition to TRANSCRIBING so the hotkey handler ignores
+        # presses while the background thread flushes remaining audio.
+        self._set_state(TRANSCRIBING)
+        threading.Thread(
+            target=self._finalize_streaming,
+            args=(stream,),
+            daemon=True,
+        ).start()
+
+    def _finalize_streaming(self, stream: TranscriptionStream) -> None:
+        """Flush stream, output text, clean up (runs on background thread)."""
         try:
             text = stream.flush()
             stream.close()
@@ -399,6 +419,7 @@ class VoxApp(rumps.App):
                 ["pbcopy"],
                 input=text.encode("utf-8"),
                 check=True,
+                timeout=3,
             )
 
             if self._config.type_at_cursor:
@@ -444,6 +465,7 @@ class VoxApp(rumps.App):
                 ["pbcopy"],
                 input=text.encode("utf-8"),
                 check=True,
+                timeout=3,
             )
 
             if self._config.type_at_cursor:
@@ -476,6 +498,7 @@ class VoxApp(rumps.App):
                 'tell application "System Events" to keystroke "v" using command down',
             ],
             check=True,
+            timeout=5,
         )
 
     # -- menu callbacks --
