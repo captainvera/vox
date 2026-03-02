@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 from typing import Callable
+
+log = logging.getLogger(__name__)
 
 import numpy as np
 import sounddevice as sd
@@ -64,6 +67,8 @@ class Recorder:
         time_info: object,
         status: sd.CallbackFlags,
     ) -> None:
+        if status:
+            log.warning("Audio callback status: %s", status)
         chunk = indata[:, 0].copy()
         with self._lock:
             self._chunks.append(chunk)

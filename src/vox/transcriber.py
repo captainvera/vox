@@ -1,9 +1,4 @@
-"""Voxtral STT — load model once, transcribe numpy audio arrays.
-
-Splits audio at silence boundaries so each chunk gets a clean
-encode+decode pass. This prevents the model from emitting EOS
-mid-recording when it detects a pause in speech.
-"""
+"""Voxtral STT — load model once, transcribe numpy audio arrays."""
 
 from __future__ import annotations
 
@@ -23,85 +18,6 @@ from .protocols import TranscriptionStream
 from .voxtral_stream import VoxtralStream
 
 log = logging.getLogger(__name__)
-
-# -- silence detection defaults --
-MIN_SILENCE_MS = 800  # pause must be at least this long to split
-SILENCE_THRESHOLD = 0.015  # RMS energy below this = silence
-ENERGY_WINDOW_MS = 30  # window size for energy computation
-MIN_CHUNK_MS = 1000  # discard chunks shorter than this
-MAX_CHUNK_S = 60  # force-split chunks longer than this
-
-
-def _split_on_silence(
-    audio: np.ndarray,
-    sample_rate: int = 16_000,
-    min_silence_ms: int = MIN_SILENCE_MS,
-    silence_threshold: float = SILENCE_THRESHOLD,
-    min_chunk_ms: int = MIN_CHUNK_MS,
-    max_chunk_s: int = MAX_CHUNK_S,
-) -> list[np.ndarray]:
-    """Split audio into chunks at silence boundaries.
-
-    Returns a list of numpy arrays, each a contiguous speech segment.
-    Falls back to the full audio if no silences are found.
-    """
-    window_samples = int(sample_rate * ENERGY_WINDOW_MS / 1000)
-    hop_samples = window_samples // 2
-
-    if len(audio) < window_samples:
-        return [audio]
-
-    # Compute RMS energy per window.
-    n_windows = (len(audio) - window_samples) // hop_samples + 1
-    energies = np.array(
-        [
-            np.sqrt(
-                np.mean(
-                    audio[i * hop_samples : i * hop_samples + window_samples] ** 2
-                )
-            )
-            for i in range(n_windows)
-        ]
-    )
-
-    is_silent = energies < silence_threshold
-    min_silent_windows = max(1, int(min_silence_ms / ENERGY_WINDOW_MS))
-
-    # Find contiguous silence runs long enough to split at.
-    split_samples: list[int] = []
-    run_start: int | None = None
-    for i, silent in enumerate(is_silent):
-        if silent:
-            if run_start is None:
-                run_start = i
-        else:
-            if run_start is not None and (i - run_start) >= min_silent_windows:
-                mid = (run_start + i) // 2
-                split_samples.append(mid * hop_samples)
-            run_start = None
-
-    # Build chunks from split points.
-    boundaries = [0] + split_samples + [len(audio)]
-    min_chunk_samples = int(sample_rate * min_chunk_ms / 1000)
-    max_chunk_samples = int(sample_rate * max_chunk_s)
-
-    chunks: list[np.ndarray] = []
-    for i in range(len(boundaries) - 1):
-        chunk = audio[boundaries[i] : boundaries[i + 1]]
-        if len(chunk) < min_chunk_samples:
-            continue
-        # Skip chunks that are mostly silence (no real speech).
-        rms = float(np.sqrt(np.mean(chunk**2)))
-        if rms < silence_threshold:
-            continue
-        # Force-split oversized chunks.
-        while len(chunk) > max_chunk_samples:
-            chunks.append(chunk[:max_chunk_samples])
-            chunk = chunk[max_chunk_samples:]
-        if len(chunk) >= min_chunk_samples:
-            chunks.append(chunk)
-
-    return chunks if chunks else [audio]
 
 
 class VoxtralTranscriber:

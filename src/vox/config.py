@@ -12,14 +12,22 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 DEFAULT_MODEL_PATH = str(Path.home() / "models" / "Voxtral-Mini-4B-Realtime-6bit")
 
 
+VALID_MODES = ("transcript", "realtime")
+
+
 @dataclass
 class Config:
     model_path: str = DEFAULT_MODEL_PATH
-    hotkey: str = "<alt>+<space>"
     post_processing: bool = True
     type_at_cursor: bool = False
     sample_rate: int = 16_000
     mode: str = "transcript"  # "transcript" | "realtime"
+
+    def __post_init__(self) -> None:
+        if self.mode not in VALID_MODES:
+            raise ValueError(
+                f"Invalid mode {self.mode!r}, must be one of {VALID_MODES}"
+            )
 
     @classmethod
     def load(cls) -> Config:
@@ -28,7 +36,7 @@ class Config:
                 data = json.loads(CONFIG_FILE.read_text())
                 known = {k: data[k] for k in cls.__dataclass_fields__ if k in data}
                 return cls(**known)
-            except (json.JSONDecodeError, TypeError):
+            except (json.JSONDecodeError, TypeError, ValueError):
                 pass
         return cls()
 
