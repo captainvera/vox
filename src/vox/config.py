@@ -19,6 +19,7 @@ class Config:
     post_processing: bool = True
     type_at_cursor: bool = False
     sample_rate: int = 16_000
+    mode: str = "transcript"  # "transcript" | "realtime"
 
     @classmethod
     def load(cls) -> Config:
