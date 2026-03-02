@@ -4,7 +4,7 @@ These verify:
 - Recorder accepts an on_chunk callback parameter
 - Callback is invoked with each audio chunk during recording
 - When on_chunk is None, existing behavior is preserved (chunks buffered)
-- Chunks are still buffered for stop() even when on_chunk is set
+- When on_chunk is set, chunks are NOT buffered (streaming mode skips it)
 """
 
 from __future__ import annotations
@@ -46,24 +46,22 @@ def test_recorder_on_chunk_called_with_audio(mock_sd):
     np.testing.assert_array_equal(chunks_received[0], fake_audio[:, 0])
 
 
-def test_recorder_still_buffers_with_on_chunk(mock_sd):
-    """Even with on_chunk set, stop() should return buffered audio."""
+def test_recorder_skips_buffering_with_on_chunk(mock_sd):
+    """With on_chunk set, stop() should return empty (no buffering)."""
     from vox.recorder import Recorder
 
     r = Recorder(sample_rate=16_000, on_chunk=lambda c: None)
     r.start()
     sd_callback = mock_sd.InputStream.call_args[1]["callback"]
 
-    # Feed two chunks
+    # Feed two chunks — should NOT be buffered
     chunk1 = np.ones((1280, 1), dtype=np.float32)
     chunk2 = np.ones((1280, 1), dtype=np.float32) * 0.5
     sd_callback(chunk1, 1280, None, MagicMock())
     sd_callback(chunk2, 1280, None, MagicMock())
 
     audio = r.stop()
-    assert len(audio) == 2560
-    np.testing.assert_array_almost_equal(audio[:1280], 1.0)
-    np.testing.assert_array_almost_equal(audio[1280:], 0.5)
+    assert len(audio) == 0
 
 
 def test_recorder_no_on_chunk_preserves_behavior(mock_sd):

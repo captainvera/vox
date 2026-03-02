@@ -78,7 +78,10 @@ class Recorder:
         if status:
             log.warning("Audio callback status: %s", status)
         chunk = indata[:, 0].copy()
-        with self._lock:
-            self._chunks.append(chunk)
         if self._on_chunk is not None:
+            # Streaming mode: forward chunk, skip buffering (caller
+            # discards stop() return value, so _chunks would be a leak).
             self._on_chunk(chunk)
+        else:
+            with self._lock:
+                self._chunks.append(chunk)

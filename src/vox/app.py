@@ -372,8 +372,11 @@ class VoxApp(rumps.App):
     def _stop_streaming(self) -> None:
         """Stop recording, flush remaining tokens, output final text."""
         log.info("Stopping realtime stream")
-        self._recorder.stop()
+        # Clear callback BEFORE stopping — prevents the sounddevice
+        # callback from blocking in feed() during shutdown, which would
+        # deadlock the main thread waiting in sd.InputStream.stop().
         self._recorder.on_chunk = None
+        self._recorder.stop()
         stream = self._stream
         self._stream = None
 
