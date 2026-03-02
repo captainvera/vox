@@ -21,10 +21,16 @@ log = logging.getLogger(__name__)
 # PID file — lets ``vox stop`` / ``vox reload`` find the running process.
 _PID_FILE = Path.home() / ".local" / "share" / "vox" / "vox.pid"
 
-from .config import Config
+from .config import VALID_BACKENDS, Config
 from .formatter import Formatter
 from .protocols import Transcriber, TranscriptionStream
 from .recorder import Recorder
+
+# Display names for each backend key.
+_BACKEND_LABELS: dict[str, str] = {
+    "voxtral": "Voxtral",
+    "parakeet": "Parakeet",
+}
 
 # State constants.
 LOADING = "loading"
@@ -195,13 +201,45 @@ class VoxApp(rumps.App):
             self._config.mode == "realtime", self._on_toggle_mode,
         )
 
+        # -- backend picker (collapsible model selector) --
+        self._backend_expanded = False
+        self._backend_active_label = _BACKEND_LABELS[self._config.backend]
+
+        self._backend_active = rumps.MenuItem("Active model")
+        _make_toggle_view(
+            self._backend_active, self._backend_active_label, "brain",
+            True, lambda _state: None,  # active row is display-only
+        )
+
+        self._backend_disclosure = rumps.MenuItem("Other Models")
+        self._backend_disclosure.set_callback(
+            lambda _sender: self._on_toggle_disclosure(),
+        )
+
+        # One menu item per alternative backend (all except the active one).
+        self._backend_alternatives: list[rumps.MenuItem] = []
+        for key in VALID_BACKENDS:
+            if key == self._config.backend:
+                continue
+            item = rumps.MenuItem(_BACKEND_LABELS[key])
+            # Capture `key` in default arg to avoid late-binding closure bug.
+            item.set_callback(lambda _sender, k=key: self._on_select_backend(k))
+            self._backend_alternatives.append(item)
+
         self.menu = [
             self._status_item,
             None,
             self._pp_toggle,
             self._type_toggle,
             self._mode_toggle,
+            self._backend_active,
+            self._backend_disclosure,
+            *self._backend_alternatives,
         ]
+
+        # Hide alternatives initially (collapsed).
+        for item in self._backend_alternatives:
+            item._menuitem.setHidden_(True)
 
         # -- PID file + clean shutdown on SIGTERM --
         self._write_pid()
@@ -515,3 +553,38 @@ class VoxApp(rumps.App):
     def _on_toggle_mode(self, new_state: bool) -> None:
         self._config.mode = "realtime" if new_state else "transcript"
         self._config.save()
+
+    def _on_toggle_disclosure(self) -> None:
+        """Toggle visibility of alternative backend items."""
+        self._backend_expanded = not self._backend_expanded
+        for item in self._backend_alternatives:
+            item._menuitem.setHidden_(not self._backend_expanded)
+
+    def _on_select_backend(self, backend: str) -> None:
+        """Switch to a different backend and reload the model."""
+        if backend == self._config.backend:
+            return  # already active — noop
+        self._config.backend = backend
+        self._config.save()
+
+        # Update active label.
+        self._backend_active_label = _BACKEND_LABELS[backend]
+
+        # Rebuild alternatives list (exclude the new active backend).
+        self._backend_alternatives.clear()
+        for key in VALID_BACKENDS:
+            if key == backend:
+                continue
+            item = rumps.MenuItem(_BACKEND_LABELS[key])
+            item.set_callback(lambda _sender, k=key: self._on_select_backend(k))
+            self._backend_alternatives.append(item)
+
+        self._reload_backend()
+
+    def _reload_backend(self) -> None:
+        """Swap the transcriber and reload the model in the background."""
+        from .__main__ import _make_transcriber
+
+        self._transcriber = _make_transcriber(self._config)
+        self._set_state(LOADING)
+        threading.Thread(target=self._load_model, daemon=True).start()

@@ -507,3 +507,154 @@ def test_finalize_streaming_pbcopy_has_timeout(
     ]
     assert len(pbcopy_calls) == 1
     assert pbcopy_calls[0][1]["timeout"] > 0
+
+
+# -- Backend picker (collapsible model selector) --
+
+
+# Display names the picker should use for each backend.
+_BACKEND_LABELS = {"voxtral": "Voxtral", "parakeet": "Parakeet"}
+
+
+def test_picker_active_item_exists(config, recorder, formatter, mock_sd):
+    """App should have a _backend_active menu item showing current model."""
+    app = _make_app(config, recorder, formatter, FakeStreamingTranscriber())
+    assert hasattr(app, "_backend_active")
+
+
+def test_picker_disclosure_item_exists(config, recorder, formatter, mock_sd):
+    """App should have a _backend_disclosure menu item (chevron row)."""
+    app = _make_app(config, recorder, formatter, FakeStreamingTranscriber())
+    assert hasattr(app, "_backend_disclosure")
+
+
+def test_picker_alternative_items_exist(config, recorder, formatter, mock_sd):
+    """App should have _backend_alternatives — list of hidden menu items."""
+    app = _make_app(config, recorder, formatter, FakeStreamingTranscriber())
+    assert hasattr(app, "_backend_alternatives")
+    assert isinstance(app._backend_alternatives, list)
+    assert len(app._backend_alternatives) > 0
+
+
+def test_picker_active_label_matches_config_voxtral(
+    config, recorder, formatter, mock_sd
+):
+    """When config.backend='voxtral', active item label should be 'Voxtral'."""
+    app = _make_app(
+        config, recorder, formatter, FakeStreamingTranscriber(), backend="voxtral"
+    )
+    assert app._backend_active_label == "Voxtral"
+
+
+def test_picker_active_label_matches_config_parakeet(
+    config, recorder, formatter, mock_sd
+):
+    """When config.backend='parakeet', active item label should be 'Parakeet'."""
+    app = _make_app(
+        config, recorder, formatter, FakeStreamingTranscriber(), backend="parakeet"
+    )
+    assert app._backend_active_label == "Parakeet"
+
+
+def test_picker_alternatives_hidden_initially(
+    config, recorder, formatter, mock_sd
+):
+    """Alternative model items should start collapsed (hidden)."""
+    app = _make_app(config, recorder, formatter, FakeStreamingTranscriber())
+    assert app._backend_expanded is False
+
+
+def test_picker_disclosure_toggles_expanded(
+    config, recorder, formatter, mock_sd
+):
+    """Clicking disclosure should toggle _backend_expanded."""
+    app = _make_app(config, recorder, formatter, FakeStreamingTranscriber())
+    assert app._backend_expanded is False
+    app._on_toggle_disclosure()
+    assert app._backend_expanded is True
+    app._on_toggle_disclosure()
+    assert app._backend_expanded is False
+
+
+def test_picker_select_alternative_switches_backend(
+    config, recorder, formatter, mock_sd
+):
+    """Clicking an alternative model should change config.backend."""
+    app = _make_app(
+        config, recorder, formatter, FakeStreamingTranscriber(), backend="voxtral"
+    )
+    with (
+        patch.object(app._config, "save"),
+        patch.object(app, "_reload_backend"),
+    ):
+        app._on_select_backend("parakeet")
+    assert app._config.backend == "parakeet"
+
+
+def test_picker_select_alternative_triggers_reload(
+    config, recorder, formatter, mock_sd
+):
+    """Clicking an alternative model should call _reload_backend."""
+    app = _make_app(
+        config, recorder, formatter, FakeStreamingTranscriber(), backend="voxtral"
+    )
+    with (
+        patch.object(app._config, "save"),
+        patch.object(app, "_reload_backend") as mock_reload,
+    ):
+        app._on_select_backend("parakeet")
+    mock_reload.assert_called_once()
+
+
+def test_picker_select_alternative_updates_labels(
+    config, recorder, formatter, mock_sd
+):
+    """After selecting a new backend, active label should change."""
+    app = _make_app(
+        config, recorder, formatter, FakeStreamingTranscriber(), backend="voxtral"
+    )
+    with (
+        patch.object(app._config, "save"),
+        patch.object(app, "_reload_backend"),
+    ):
+        app._on_select_backend("parakeet")
+    assert app._backend_active_label == "Parakeet"
+
+
+def test_picker_select_same_backend_is_noop(
+    config, recorder, formatter, mock_sd
+):
+    """Selecting the already-active backend should not reload."""
+    app = _make_app(
+        config, recorder, formatter, FakeStreamingTranscriber(), backend="voxtral"
+    )
+    with (
+        patch.object(app._config, "save") as mock_save,
+        patch.object(app, "_reload_backend") as mock_reload,
+    ):
+        app._on_select_backend("voxtral")
+    mock_reload.assert_not_called()
+    mock_save.assert_not_called()
+
+
+def test_picker_no_old_backend_toggle(config, recorder, formatter, mock_sd):
+    """Old _backend_toggle attribute should be removed."""
+    app = _make_app(config, recorder, formatter, FakeStreamingTranscriber())
+    assert not hasattr(app, "_backend_toggle")
+
+
+def test_reload_backend_sets_loading_state(
+    config, recorder, formatter, mock_sd
+):
+    """_reload_backend should set state to LOADING."""
+    app = _make_app(
+        config, recorder, formatter, FakeStreamingTranscriber(), backend="voxtral"
+    )
+    app._state = "idle"
+
+    with (
+        patch("vox.app.AppHelper"),
+        patch("vox.app.threading.Thread"),
+    ):
+        app._reload_backend()
+    assert app._state == "loading"

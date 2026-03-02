@@ -13,6 +13,9 @@ DEFAULT_MODEL_PATH = str(Path.home() / "models" / "Voxtral-Mini-4B-Realtime-6bit
 
 
 VALID_MODES = ("transcript", "realtime")
+VALID_BACKENDS = ("voxtral", "parakeet")
+
+DEFAULT_PARAKEET_MODEL = "mlx-community/parakeet-tdt-0.6b-v3"
 
 
 @dataclass
@@ -22,11 +25,17 @@ class Config:
     type_at_cursor: bool = False
     sample_rate: int = 16_000
     mode: str = "transcript"  # "transcript" | "realtime"
+    backend: str = "voxtral"  # "voxtral" | "parakeet"
+    parakeet_model: str = DEFAULT_PARAKEET_MODEL
 
     def __post_init__(self) -> None:
         if self.mode not in VALID_MODES:
             raise ValueError(
                 f"Invalid mode {self.mode!r}, must be one of {VALID_MODES}"
+            )
+        if self.backend not in VALID_BACKENDS:
+            raise ValueError(
+                f"Invalid backend {self.backend!r}, must be one of {VALID_BACKENDS}"
             )
 
     @classmethod
