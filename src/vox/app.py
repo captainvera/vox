@@ -55,6 +55,30 @@ _MOD_MASK = _FLAG_OPTION | _FLAG_CMD | _FLAG_CTRL | _FLAG_SHIFT
 _MASK_KEYDOWN = 1 << 10  # NSEventMaskKeyDown
 
 
+# -- Error formatting ------------------------------------------------------
+
+_ERR_LINE_WIDTH = 30   # max chars per line in the status menu item
+_ERR_MAX_LINES = 3     # at most this many lines (including "Error:")
+
+
+def _format_error(msg: str) -> str:
+    """Wrap an error message into short lines for the menu item.
+
+    Lines are broken on word boundaries when possible.  If the message
+    still exceeds *_ERR_MAX_LINES* lines it is truncated with '...'.
+    """
+    import textwrap
+
+    msg = " ".join(msg.split())  # collapse whitespace
+    lines = textwrap.wrap(
+        f"Error: {msg}", width=_ERR_LINE_WIDTH, break_long_words=True,
+    )
+    if len(lines) > _ERR_MAX_LINES:
+        lines = lines[:_ERR_MAX_LINES]
+        lines[-1] = lines[-1][: _ERR_LINE_WIDTH - 3].rstrip() + "..."
+    return "\n".join(lines)
+
+
 # -- Toggle menu items (icon indicator pattern) ----------------------------
 #
 # Menu items show a circular icon indicator: blue circle + white SF Symbol
@@ -399,7 +423,8 @@ class VoxApp(rumps.App):
         except Exception as exc:
             log.exception("Model failed to load")
             AppHelper.callAfter(
-                setattr, self._status_item, "title", f"Error: {exc}",
+                setattr, self._status_item, "title",
+                _format_error(str(exc)),
             )
 
     def _start_hotkey(self) -> None:
