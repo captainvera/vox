@@ -225,7 +225,10 @@ class VoxApp(rumps.App):
             self._transcriber.load()
             self._set_state(IDLE)
         except Exception as exc:
-            self._status_item.title = f"Error: {exc}"
+            log.exception("Model failed to load")
+            AppHelper.callAfter(
+                setattr, self._status_item, "title", f"Error: {exc}",
+            )
 
     def _start_hotkey(self) -> None:
         """Register a global hotkey via Cocoa NSEvent monitor.
