@@ -517,7 +517,7 @@ def test_finalize_streaming_pbcopy_has_timeout(
 
 
 # Display names the picker should use for each backend.
-_BACKEND_LABELS = {"voxtral": "Voxtral (quality)", "parakeet": "Parakeet (fast)"}
+_BACKEND_LABELS = {"voxtral": "Voxtral (Quality)", "parakeet": "Parakeet (Fast)"}
 
 
 def test_picker_active_item_exists(config, recorder, formatter, mock_sd):
@@ -547,7 +547,7 @@ def test_picker_active_label_matches_config_voxtral(
     app = _make_app(
         config, recorder, formatter, FakeStreamingTranscriber(), backend="voxtral"
     )
-    assert app._backend_active_label == "Voxtral (quality)"
+    assert app._backend_active_label == "Voxtral (Quality)"
 
 
 def test_picker_active_label_matches_config_parakeet(
@@ -557,7 +557,7 @@ def test_picker_active_label_matches_config_parakeet(
     app = _make_app(
         config, recorder, formatter, FakeStreamingTranscriber(), backend="parakeet"
     )
-    assert app._backend_active_label == "Parakeet (fast)"
+    assert app._backend_active_label == "Parakeet (Fast)"
 
 
 def test_picker_alternatives_hidden_initially(
@@ -628,7 +628,7 @@ def test_picker_select_alternative_updates_labels(
         patch("vox.app._make_model_view"),
     ):
         app._on_select_backend("parakeet")
-    assert app._backend_active_label == "Parakeet (fast)"
+    assert app._backend_active_label == "Parakeet (Fast)"
 
 
 def test_picker_select_same_backend_is_noop(
