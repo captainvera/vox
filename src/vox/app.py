@@ -153,6 +153,23 @@ def _make_toggle_view(menu_item, label, symbol, state, callback):
     return indicator
 
 
+def _make_section_header(menu_item, label):
+    """Non-interactive section label matching macOS menu style (e.g. "Known Network")."""
+    width, height = 250, 22
+    pad = 14
+
+    container = NSView.alloc().initWithFrame_(((0, 0), (width, height)))
+    tf = NSTextField.labelWithString_(label)
+    tf.setFont_(NSFont.menuFontOfSize_(13))
+    tf.setTextColor_(NSColor.secondaryLabelColor())
+    tf.sizeToFit()
+    tf.setFrameOrigin_((pad, (height - tf.frame().size.height) / 2))
+    container.addSubview_(tf)
+
+    menu_item._menuitem.setView_(container)
+    menu_item.set_callback(None)
+
+
 def _make_disclosure_view(menu_item, label, expanded, callback):
     """Section header with label + right-aligned chevron.
 
@@ -296,6 +313,9 @@ class VoxApp(rumps.App):
         self._backend_expanded = False
         self._backend_active_label = _BACKEND_LABELS[self._config.backend]
 
+        self._backend_section = rumps.MenuItem("Model")
+        _make_section_header(self._backend_section, "Model")
+
         self._backend_active = rumps.MenuItem("Active model")
         _make_toggle_view(
             self._backend_active, self._backend_active_label, "brain",
@@ -329,7 +349,9 @@ class VoxApp(rumps.App):
             self._type_toggle,
             self._mode_toggle,
             None,
+            self._backend_section,
             self._backend_active,
+            None,
             self._backend_disclosure,
             *self._backend_alternatives,
         ]

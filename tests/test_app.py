@@ -131,6 +131,7 @@ def _make_app(config, recorder, formatter, transcriber, **config_overrides):
         patch("vox.app.threading.Thread"),
         patch("vox.app.AppHelper"),
         patch("vox.app._make_toggle_view", return_value=MagicMock()),
+        patch("vox.app._make_section_header"),
         patch("vox.app._make_disclosure_view", return_value=MagicMock()),
         patch("vox.app._make_model_view"),
     ):
