@@ -227,7 +227,14 @@ def _create_app_bundle() -> Path:
     """Create or update ~/Applications/Vox.app."""
     contents = APP_PATH / "Contents"
     macos = contents / "MacOS"
+    resources = contents / "Resources"
     macos.mkdir(parents=True, exist_ok=True)
+    resources.mkdir(parents=True, exist_ok=True)
+
+    # App icon — copy .icns into Resources/.
+    icns_src = Path(__file__).parent / "icons" / "Vox.icns"
+    if icns_src.exists():
+        shutil.copy(icns_src, resources / "Vox.icns")
 
     # Info.plist
     info = {
@@ -235,6 +242,7 @@ def _create_app_bundle() -> Path:
         "CFBundleName": "Vox",
         "CFBundleDisplayName": "Vox",
         "CFBundleExecutable": "Vox",
+        "CFBundleIconFile": "Vox",
         "CFBundleVersion": "0.1.0",
         "LSUIElement": True,  # no Dock icon
         "NSMicrophoneUsageDescription": (
