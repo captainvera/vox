@@ -36,9 +36,6 @@ Menubar STT for macOS. Record voice via hotkey, transcribe offline with Voxtral 
 **Menubar icons.** All states use SVG template images (adapt to light/dark automatically). Idle/loading = logo.svg (stylized waveform "V"), recording = mic.svg, transcribing = wave.svg. Icons at `src/vox/icons/`, resolved via `Path(__file__).parent / "icons"`. No text titles — `self.title = None` is set after icon to avoid rumps' `fallbackOnName()` re-setting it to the app name.
 
 **Log redirect in .app context.** When launched from the compiled .app bundle, `__main__.py` detects the bundle via `NSBundle.mainBundle().bundleIdentifier()` and redirects stdout/stderr to `~/.local/share/vox/vox.log` before anything else runs. This captures logging, print(), and unhandled exceptions. When running `vox` in foreground (no subcommand), output goes to the terminal as usual.
-
-**`_split_on_silence()` is dead code.** Exists in `transcriber.py` but bypassed. The model's EOS mid-utterance drops speech. Open problem.
-
 ## Running vox
 
 ```

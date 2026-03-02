@@ -21,6 +21,8 @@ import tempfile
 import time
 from pathlib import Path
 
+from vox import __version__
+
 # -- paths ----------------------------------------------------------------
 
 APP_DIR = Path.home() / "Applications"
@@ -243,7 +245,7 @@ def _create_app_bundle() -> Path:
         "CFBundleDisplayName": "Vox",
         "CFBundleExecutable": "Vox",
         "CFBundleIconFile": "Vox",
-        "CFBundleVersion": "0.1.0",
+        "CFBundleVersion": __version__,
         "LSUIElement": True,  # no Dock icon
         "NSMicrophoneUsageDescription": (
             "Vox needs microphone access to transcribe speech."

@@ -8,13 +8,11 @@ dependencies = [
     "voxmlx>=0.0.2",
     "sounddevice>=0.5.0",
     "soundfile>=0.13.0",
+    "parakeet-mlx>=0.3.0",
 ]
 
 [project.scripts]
 vox = "vox.__main__:main"
-
-[project.optional-dependencies]
-parakeet = ["parakeet-mlx>=0.3.0"]
 
 [dependency-groups]
 dev = ["pytest>=8.0"]
