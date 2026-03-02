@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 import rumps
-from AppKit import NSColor, NSEvent, NSFont, NSImage, NSImageView, NSTextField, NSView
+from AppKit import NSColor, NSEvent, NSFont, NSImage, NSImageView, NSObject, NSTextField, NSView
 from PyObjCTools import AppHelper
 
 log = logging.getLogger(__name__)
@@ -60,6 +60,14 @@ _MASK_KEYDOWN = 1 << 10  # NSEventMaskKeyDown
 # Menu items show a circular icon indicator: blue circle + white SF Symbol
 # when on, dim icon when off — matching the macOS Wi-Fi/Bluetooth
 # selection pattern.  Custom views keep the menu open on click.
+
+
+class _MenuDelegate(NSObject):
+    """NSMenu delegate — fires a Python callback on menuWillOpen:."""
+
+    def menuWillOpen_(self, menu):
+        if hasattr(self, "_py_on_open"):
+            self._py_on_open()
 
 
 class _ClickableView(NSView):
@@ -360,6 +368,13 @@ class VoxApp(rumps.App):
         for item in self._backend_alternatives:
             item._menuitem.setHidden_(True)
 
+        # Collapse disclosure every time the menu opens.
+        self._menu_delegate = _MenuDelegate.alloc().init()
+        self._menu_delegate._py_on_open = self._on_menu_open
+        # The NSMenu backing self.menu is the first item's parent menu.
+        ns_menu = self._status_item._menuitem.menu()
+        ns_menu.setDelegate_(self._menu_delegate)
+
         # -- PID file + clean shutdown on SIGTERM --
         self._write_pid()
         signal.signal(signal.SIGTERM, lambda *_: rumps.quit_application())
@@ -657,6 +672,17 @@ class VoxApp(rumps.App):
             check=True,
             timeout=5,
         )
+
+    def _on_menu_open(self) -> None:
+        """Reset disclosure to collapsed every time the menubar menu opens."""
+        if self._backend_expanded:
+            self._backend_expanded = False
+            for item in self._backend_alternatives:
+                item._menuitem.setHidden_(True)
+            image = NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+                "chevron.down", None,
+            )
+            self._disclosure_chevron.setImage_(image)
 
     # -- menu callbacks --
 
