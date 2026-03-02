@@ -283,7 +283,7 @@ def test_mode_toggle_switches_config(config, recorder, formatter, mock_sd):
 def test_start_streaming_wires_recorder_on_chunk(
     config, recorder, formatter, mock_sd
 ):
-    """_start_streaming should set recorder._on_chunk = stream.feed."""
+    """_start_streaming should set recorder.on_chunk = stream.feed."""
     transcriber = FakeStreamingTranscriber()
     transcriber.load()
     app = _make_app(config, recorder, formatter, transcriber, mode="realtime")
@@ -294,13 +294,13 @@ def test_start_streaming_wires_recorder_on_chunk(
 
     stream = transcriber.last_stream
     # Bound methods create new wrappers; use == not is
-    assert app._recorder._on_chunk == stream.feed
+    assert app._recorder.on_chunk == stream.feed
 
 
 def test_stop_streaming_clears_recorder_on_chunk(
     config, recorder, formatter, mock_sd
 ):
-    """_stop_streaming should clear recorder._on_chunk."""
+    """_stop_streaming should clear recorder.on_chunk."""
     transcriber = FakeStreamingTranscriber()
     transcriber.load()
     app = _make_app(config, recorder, formatter, transcriber, mode="realtime")
@@ -317,7 +317,7 @@ def test_stop_streaming_clears_recorder_on_chunk(
     ):
         app._stop_streaming()
 
-    assert app._recorder._on_chunk is None
+    assert app._recorder.on_chunk is None
 
 
 # -- Keystroke output --

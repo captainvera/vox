@@ -31,6 +31,14 @@ class Recorder:
     def is_recording(self) -> bool:
         return self._recording
 
+    @property
+    def on_chunk(self) -> Callable[[np.ndarray], None] | None:
+        return self._on_chunk
+
+    @on_chunk.setter
+    def on_chunk(self, callback: Callable[[np.ndarray], None] | None) -> None:
+        self._on_chunk = callback
+
     def start(self) -> None:
         """Open the mic and begin buffering audio."""
         self._chunks = []

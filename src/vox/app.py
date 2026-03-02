@@ -317,7 +317,7 @@ class VoxApp(rumps.App):
             on_token=self._on_stream_token,
         )
         # Bridge recorder audio callback → stream.feed
-        self._recorder._on_chunk = self._stream.feed
+        self._recorder.on_chunk = self._stream.feed
         # Start async keystroke worker
         self._keystroke_thread = threading.Thread(
             target=self._keystroke_worker, daemon=True,
@@ -373,7 +373,7 @@ class VoxApp(rumps.App):
         """Stop recording, flush remaining tokens, output final text."""
         log.info("Stopping realtime stream")
         self._recorder.stop()
-        self._recorder._on_chunk = None
+        self._recorder.on_chunk = None
         stream = self._stream
         self._stream = None
 
