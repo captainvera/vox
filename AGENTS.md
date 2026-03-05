@@ -31,7 +31,7 @@ Menubar STT for macOS. Record voice via hotkey, transcribe offline with Voxtral 
 
 **Model is pre-downloaded.** Voxtral weights at `~/models/Voxtral-Mini-4B-Realtime-6bit`, cloned via git (Python SSL + Cloudflare WARP cert issue). Never downloads at runtime.
 
-**voxmlx private API.** Imports `voxmlx._build_prompt_tokens`, `voxmlx.load_model`, `voxmlx.generate.generate`. Check installed source at `~/.local/share/uv/tools/vox/lib/python3.13/site-packages/voxmlx/` if behavior changes. The streaming path also uses `voxmlx.audio.log_mel_spectrogram_step`, `voxmlx.audio.SAMPLES_PER_TOKEN`, `voxmlx.cache.RotatingKVCache`, and `model.encode_step()` / `model.decode()` directly.
+**voxmlx private API.** Source: https://github.com/awni/voxmlx (by Awni Hannun, Apple MLX team). Imports `voxmlx._build_prompt_tokens`, `voxmlx.load_model`, `voxmlx.generate.generate`. Check installed source at `~/.local/share/uv/tools/vox/lib/python3.13/site-packages/voxmlx/` if behavior changes. The streaming path also uses `voxmlx.audio.log_mel_spectrogram_step`, `voxmlx.audio.SAMPLES_PER_TOKEN`, `voxmlx.cache.RotatingKVCache`, and `model.encode_step()` / `model.decode()` directly.
 
 **Menubar icons.** All states use SVG template images (adapt to light/dark automatically). Idle/loading = logo.svg (stylized waveform "V"), recording = mic.svg, transcribing = wave.svg. Icons at `src/vox/icons/`, resolved via `Path(__file__).parent / "icons"`. No text titles — `self.title = None` is set after icon to avoid rumps' `fallbackOnName()` re-setting it to the app name.
 
