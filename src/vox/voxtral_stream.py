@@ -83,6 +83,12 @@ class VoxtralStream:
         self._first_cycle = True
         self._prefilled = False
 
+        # Silence detection
+        self._consecutive_empty = 0
+        self._silence_threshold = 25  # ~2s at 12.5 tokens/sec
+        self._silence_paused = False
+        self._speech_rms_threshold = 0.003  # RMS above this = speech
+
         # Stats
         self._start_time = time.monotonic()
         self._tokens_emitted = 0
@@ -127,7 +133,14 @@ class VoxtralStream:
 
         self._running = False
         if not self._done_event.wait(timeout=10):
-            log.warning("Stream processing thread did not stop within 10s")
+            log.warning(
+                "Stream processing thread did not stop within 10s "
+                "— returning partial text (skipping final flush to "
+                "avoid concurrent model access)"
+            )
+            result = "".join(self._accumulated)
+            log.info("Stream flush (partial): %d chars, %r", len(result), result[:120])
+            return result
 
         # Final flush: feed remaining audio + right padding
         remaining = self._drain_audio()
@@ -181,7 +194,27 @@ class VoxtralStream:
     # -- Internal helpers --
 
     def _emit_token(self, text: str) -> None:
-        """Accumulate text and fire callback."""
+        """Accumulate text and fire callback.
+
+        Filters empty/whitespace-only tokens (produced during silence).
+        Tracks consecutive empty tokens for silence detection.
+        """
+        if not text or not text.strip():
+            self._consecutive_empty += 1
+            if (
+                not self._silence_paused
+                and self._consecutive_empty >= self._silence_threshold
+            ):
+                self._silence_paused = True
+                log.info(
+                    "Silence detected (%d consecutive empty tokens) "
+                    "— pausing decode, will reset on next speech",
+                    self._consecutive_empty,
+                )
+            return
+
+        self._consecutive_empty = 0
+
         self._accumulated.append(text)
         self._tokens_emitted += 1
         try:
@@ -309,6 +342,10 @@ class VoxtralStream:
         n_consumed = 0
         hit_eos = False
         for i in range(n_decodable):
+            if not self._running:
+                log.info("Decode interrupted (_running=False) at step %d/%d", i, n_decodable)
+                break
+
             token_embed = self._model.language_model.embed(
                 self._y.reshape(1, 1)
             )[0, 0]
@@ -360,7 +397,9 @@ class VoxtralStream:
             self._reset_state()
 
     def _reset_state(self) -> None:
-        """Reset all encoder/decoder state after EOS."""
+        """Reset all encoder/decoder state (EOS or silence boundary)."""
+        self._cache = None
+        self._y = None
         self._audio_tail = None
         self._conv1_tail = None
         self._conv2_tail = None
@@ -383,6 +422,55 @@ class VoxtralStream:
             while self._running:
                 loop_count += 1
                 new_audio = self._drain_audio()
+
+                # -- Silence pause: drain audio, check RMS, skip encode/decode --
+                if self._silence_paused:
+                    # Reset state once on entering silence so the model
+                    # starts fresh when speech resumes (like a new segment).
+                    if self._cache is not None:
+                        log.info("Resetting encoder/decoder state for silence pause")
+                        self._reset_state()
+                        mx.clear_cache()
+
+                    if len(new_audio) > 0:
+                        rms = float(np.sqrt(np.mean(new_audio ** 2)))
+                        log.debug("Silence probe RMS=%.5f (threshold=%.4f)", rms, self._speech_rms_threshold)
+                        if rms > self._speech_rms_threshold:
+                            self._silence_paused = False
+                            self._consecutive_empty = 0
+                            # Keep this audio — it's speech.  _first_cycle
+                            # is True from _reset_state, so next iteration
+                            # does left-pad + prefill.  Lookback buffer
+                            # already has the onset in _pending_audio.
+                            self._pending_audio = np.append(
+                                self._pending_audio, new_audio
+                            )
+                            log.info(
+                                "Speech detected (RMS=%.4f) — resuming "
+                                "(will re-prefill as new segment, "
+                                "lookback=%.3fs)",
+                                rms,
+                                len(self._pending_audio) / 16_000,
+                            )
+                            continue
+
+                        # Keep a lookback buffer (~0.5s) to capture
+                        # speech onset.  The beginning of a word often
+                        # has low RMS (partial consonant), so discarding
+                        # all silence audio loses the first syllable.
+                        self._pending_audio = np.append(
+                            self._pending_audio, new_audio
+                        )
+                        max_lookback = int(0.5 * 16_000)
+                        if len(self._pending_audio) > max_lookback:
+                            self._pending_audio = self._pending_audio[
+                                -max_lookback:
+                            ]
+
+                    time.sleep(0.1)
+                    continue
+
+                # -- Normal path: buffer audio, encode, decode --
                 if len(new_audio) > 0:
                     self._pending_audio = np.append(
                         self._pending_audio, new_audio
