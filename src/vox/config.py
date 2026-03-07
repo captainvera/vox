@@ -13,9 +13,10 @@ DEFAULT_MODEL_PATH = str(Path.home() / "models" / "Voxtral-Mini-4B-Realtime-6bit
 
 
 VALID_MODES = ("transcript", "realtime")
-VALID_BACKENDS = ("voxtral", "parakeet")
+VALID_BACKENDS = ("voxtral", "parakeet", "moonshine")
 
 DEFAULT_PARAKEET_MODEL = "mlx-community/parakeet-tdt-0.6b-v3"
+DEFAULT_MOONSHINE_ARCH = "medium-streaming"
 
 
 @dataclass
@@ -25,8 +26,9 @@ class Config:
     type_at_cursor: bool = False
     sample_rate: int = 16_000
     mode: str = "transcript"  # "transcript" | "realtime"
-    backend: str = "voxtral"  # "voxtral" | "parakeet"
+    backend: str = "voxtral"  # "voxtral" | "parakeet" | "moonshine"
     parakeet_model: str = DEFAULT_PARAKEET_MODEL
+    moonshine_arch: str = DEFAULT_MOONSHINE_ARCH
 
     def __post_init__(self) -> None:
         if self.mode not in VALID_MODES:

@@ -4,7 +4,7 @@ Menubar STT for macOS. Record voice via hotkey, transcribe offline with Voxtral 
 
 ## Quick orientation
 
-- `plan.md` — goals, non-goals, architecture overview, key decisions
+- `docs/dev-plans/` — numbered dev plans (001-vox-core, 002-moonshine-streaming, ...)
 - `src/vox/app.py` — rumps menubar app, state machine, hotkey (NSEvent), output handling
 - `src/vox/protocols.py` — `Transcriber` and `TranscriptionStream` protocols (backend-agnostic)
 - `src/vox/transcriber.py` — Voxtral batch inference wrapper; implements `Transcriber` protocol

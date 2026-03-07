@@ -101,7 +101,7 @@ class ParakeetStream:
     _MIN_NEW_SAMPLES = 8000  # 0.5 s @ 16 kHz
 
     # Seconds between batch transcriptions.
-    _INTERVAL = 2.0
+    _INTERVAL = 1.5
 
     # RMS energy threshold for speech detection.  Audio chunks below
     # this are considered silence and won't trigger re-transcription
@@ -249,13 +249,24 @@ class ParakeetStream:
         self._last_batch_text = new_batch_text
 
     def _emit_confirmed(self) -> None:
-        """Emit any confirmed text that hasn't been typed yet."""
+        """Emit confirmed text trimmed to the last word boundary.
+
+        Avoids emitting partial words (e.g. "para" when the model
+        hasn't settled on "parate" vs "parakeet" yet).  The held-back
+        partial word will be emitted once it stabilises in a later
+        batch, or by flush() which bypasses word-boundary trimming.
+        """
         if not self._confirmed_text:
             return
-        delta = self._compute_delta(self._emitted_text, self._confirmed_text)
+        # Trim to last word boundary (space) so we never emit mid-word.
+        emit_up_to = self._confirmed_text
+        last_space = emit_up_to.rfind(" ")
+        if last_space > len(self._emitted_text):
+            emit_up_to = emit_up_to[: last_space + 1]
+        delta = self._compute_delta(self._emitted_text, emit_up_to)
         if delta:
             self._emit_token(delta)
-            self._emitted_text = self._confirmed_text
+            self._emitted_text = emit_up_to
 
     @staticmethod
     def _compute_delta(old_text: str, new_text: str) -> str:

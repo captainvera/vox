@@ -30,6 +30,7 @@ from .recorder import Recorder
 _BACKEND_LABELS: dict[str, str] = {
     "voxtral": "Voxtral (Quality)",
     "parakeet": "Parakeet (Fast)",
+    "moonshine": "Moonshine (Streaming)",
 }
 
 # State constants.

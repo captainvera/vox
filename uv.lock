@@ -572,6 +572,26 @@ wheels = [
 ]
 
 [[package]]
+name = "moonshine-voice"
+version = "0.0.49"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "filelock" },
+    { name = "numpy" },
+    { name = "platformdirs" },
+    { name = "requests" },
+    { name = "sounddevice" },
+    { name = "tqdm" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/db/5b/56fb0f693f66fa539efe68bb8736cdb088b5f827825430bade5dad16fe70/moonshine_voice-0.0.49-py3-none-macosx_15_0_universal2.whl", hash = "sha256:5432364e3333322ef50c00d404301d945ce1d08921002b18d366f909089c9058", size = 76767988 },
+    { url = "https://files.pythonhosted.org/packages/ac/ed/fe135e82abdeeea7212552cbc30f8c08cdf1949f46188acc421f466d7dac/moonshine_voice-0.0.49-py3-none-manylinux_2_31_aarch64.manylinux_2_34_aarch64.whl", hash = "sha256:dc757f919aba6b7a7711766f2d973d41001785354e9b367a93689d95a882dfa3", size = 57668161 },
+    { url = "https://files.pythonhosted.org/packages/6a/57/ae239c2d02bdda5b86f4e9414f9369c35ce74b75b93a7150b4a4bfa67194/moonshine_voice-0.0.49-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:cf2601c10a4a24ce0003833f4fb90285217d560e36bbc6338fb646a3667469ad", size = 83863535 },
+    { url = "https://files.pythonhosted.org/packages/04/ed/3d942a206bcfd44ccba9b98ce50b6942db74197923922b07a98cd7d1018a/moonshine_voice-0.0.49-py3-none-manylinux_2_34_x86_64.whl", hash = "sha256:03edc378e5236832421ccd382b267e43b95af8008137ad6643f5baf5ba31b579", size = 84940345 },
+    { url = "https://files.pythonhosted.org/packages/ce/6d/b04e0acbea4dfbf711392c18769d4dbc41ec8ede4339f68fa5de35ed66c5/moonshine_voice-0.0.49-py3-none-win_amd64.whl", hash = "sha256:7dc44b982ffadf020094e50b23288936efcce0236a2035407b35c98299997bd5", size = 55541596 },
+]
+
+[[package]]
 name = "msgpack"
 version = "1.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1639,6 +1659,7 @@ name = "vox"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "moonshine-voice" },
     { name = "parakeet-mlx" },
     { name = "rumps" },
     { name = "sounddevice" },
@@ -1653,6 +1674,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "moonshine-voice", specifier = ">=0.0.40" },
     { name = "parakeet-mlx", specifier = ">=0.3.0" },
     { name = "rumps", specifier = ">=0.4.0" },
     { name = "sounddevice", specifier = ">=0.5.0" },

@@ -59,6 +59,10 @@ def _make_transcriber(config):
         from .parakeet import ParakeetTranscriber
 
         return ParakeetTranscriber(model_name=config.parakeet_model)
+    if config.backend == "moonshine":
+        from .moonshine import MoonshineTranscriber
+
+        return MoonshineTranscriber(model_arch=config.moonshine_arch)
     from .transcriber import VoxtralTranscriber
 
     return VoxtralTranscriber(model_path=config.model_path)
@@ -125,13 +129,17 @@ def _setup() -> None:
 
     print("\nChoose a transcription model:\n")
     print("  1) Parakeet  — 600 MB, downloads on first launch, fast")
-    print("  2) Voxtral   — 6.8 GB, best quality, realtime streaming\n")
+    print("  2) Voxtral   — 6.8 GB, best quality, realtime streaming")
+    print("  3) Moonshine — 245 MB, low latency, built-in streaming\n")
 
     choice = input("Choice [1]: ").strip() or "1"
 
     config = Config.load()
 
-    if choice == "2":
+    if choice == "3":
+        config.backend = "moonshine"
+        print("Moonshine model will download on first launch.")
+    elif choice == "2":
         config.backend = "voxtral"
 
         if voxtral_dir.is_dir():

@@ -519,7 +519,11 @@ def test_stream_confirm_text_empty(mock_parakeet_mlx):
 
 
 def test_stream_confirmation_emits_stable_text(mock_parakeet_mlx):
-    """Text should only be emitted once confirmed across 2 consecutive batches."""
+    """Text should only be emitted once confirmed across 2 consecutive batches.
+
+    Word-boundary trimming holds back partial words — "para" is not
+    emitted because the model hasn't settled on "parate" vs "parakeet".
+    """
     cb = MagicMock()
     stream = _make_stream(mock_parakeet_mlx, on_token=cb)
 
@@ -533,19 +537,46 @@ def test_stream_confirmation_emits_stable_text(mock_parakeet_mlx):
     stream._update_confirmed("Hey test for parakeet real time.")
     assert stream._confirmed_text == "Hey test for para"
 
-    # Emit the confirmed text.
+    # Emit — word-boundary trims "para" (partial word), emits up to "for ".
     stream._emit_confirmed()
-    cb.assert_called_once_with("Hey test for para")
-    assert stream._emitted_text == "Hey test for para"
+    cb.assert_called_once_with("Hey test for ")
+    assert stream._emitted_text == "Hey test for "
 
     # Batch 3: model stabilizes. Common prefix extends.
     cb.reset_mock()
     stream._update_confirmed("Hey test for parakeet real time. It works.")
     assert stream._confirmed_text == "Hey test for parakeet real time."
 
+    # Word-boundary trims "time." (no trailing space), emits up to "real ".
     stream._emit_confirmed()
-    cb.assert_called_once_with("keet real time.")
-    assert stream._emitted_text == "Hey test for parakeet real time."
+    cb.assert_called_once_with("parakeet real ")
+    assert stream._emitted_text == "Hey test for parakeet real "
+
+
+def test_stream_word_boundary_trimming(mock_parakeet_mlx):
+    """_emit_confirmed holds back trailing partial words."""
+    cb = MagicMock()
+    stream = _make_stream(mock_parakeet_mlx, on_token=cb)
+
+    # Confirmed text with trailing partial word.
+    stream._confirmed_text = "Hello worl"
+    stream._emit_confirmed()
+    cb.assert_called_once_with("Hello ")
+    assert stream._emitted_text == "Hello "
+
+    # Trailing word with NO space in un-emitted portion → emit as-is
+    # (can't trim further, and confirmation already guarantees stability).
+    cb.reset_mock()
+    stream._confirmed_text = "Hello world"
+    stream._emit_confirmed()
+    cb.assert_called_once_with("world")
+
+    # Confirmed text ending with space → emit everything.
+    cb.reset_mock()
+    stream._confirmed_text = "Hello world "
+    stream._emitted_text = ""
+    stream._emit_confirmed()
+    cb.assert_called_once_with("Hello world ")
 
 
 def test_stream_confirmation_no_emit_without_two_batches(mock_parakeet_mlx):
