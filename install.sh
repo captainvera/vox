@@ -94,38 +94,44 @@ fi
 
 success "vox installed: $(command -v vox)"
 
-# -- Model selection -----------------------------------------------------------
+# -- Download Voxtral model ----------------------------------------------------
 
-echo ""
-printf "${BOLD}Choose a transcription model:${NC}\n"
-echo ""
-echo "  1) Parakeet  — 600 MB, downloads on first launch, fast, good accuracy"
-echo "  2) Voxtral   — 6.8 GB, best quality, supports realtime streaming"
-echo ""
-read -rp "Choice [1]: " model_choice
-model_choice="${model_choice:-1}"
+if [[ -d "$VOXTRAL_DIR" ]]; then
+    success "Voxtral model already exists at ${VOXTRAL_DIR}"
+else
+    info "Downloading Voxtral model (6.8 GB) — this will take a while..."
 
-if [[ "$model_choice" == "2" ]]; then
-    # -- Voxtral ---------------------------------------------------------------
-    if [[ -d "$VOXTRAL_DIR" ]]; then
-        success "Voxtral model already exists at ${VOXTRAL_DIR}"
+    if command -v git-lfs &>/dev/null; then
+        git clone "https://huggingface.co/${VOXTRAL_HF_REPO}" "$VOXTRAL_DIR"
     else
-        info "Downloading Voxtral model (6.8 GB) — this will take a while..."
-
-        if command -v git-lfs &>/dev/null; then
+        warn "git-lfs not found — installing via Homebrew..."
+        if command -v brew &>/dev/null; then
+            brew install git-lfs
+            git lfs install
             git clone "https://huggingface.co/${VOXTRAL_HF_REPO}" "$VOXTRAL_DIR"
         else
-            warn "git-lfs not found — installing via Homebrew..."
-            if command -v brew &>/dev/null; then
-                brew install git-lfs
-                git lfs install
-                git clone "https://huggingface.co/${VOXTRAL_HF_REPO}" "$VOXTRAL_DIR"
-            else
-                warn "No Homebrew found. Falling back to huggingface-cli..."
-                uvx --from huggingface-hub huggingface-cli download \
-                    "$VOXTRAL_HF_REPO" \
-                    --local-dir "$VOXTRAL_DIR"
-            fi
+            warn "No Homebrew found. Falling back to huggingface-cli..."
+            uvx --from huggingface-hub huggingface-cli download \
+                "$VOXTRAL_HF_REPO" \
+                --local-dir "$VOXTRAL_DIR"
+        fi
+    fi
+
+    success "Voxtral model downloaded to ${VOXTRAL_DIR}"
+fi
+
+# Set voxtral as default backend
+mkdir -p "$HOME/.config/vox"
+python3 -c "
+import json
+from pathlib import Path
+cfg = Path.home() / '.config' / 'vox' / 'config.json'
+data = json.loads(cfg.read_text()) if cfg.exists() else {}
+data['backend'] = 'voxtral'
+data['mode'] = 'transcript'
+cfg.write_text(json.dumps(data, indent=2) + '\n')
+"
+success "Default backend: voxtral"
         fi
 
         success "Voxtral model downloaded to ${VOXTRAL_DIR}"

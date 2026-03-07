@@ -308,7 +308,7 @@ class VoxApp(rumps.App):
         transcriber: Transcriber,
         formatter: Formatter,
     ) -> None:
-        super().__init__("vox", title="V", quit_button="Quit")
+        super().__init__("vox", icon=_ICON_LOGO, template=True, quit_button="Quit")
 
         self._config = config
         self._recorder = recorder
