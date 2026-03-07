@@ -31,6 +31,11 @@ DATA_DIR = Path.home() / ".local" / "share" / "vox"
 LOG_FILE = DATA_DIR / "vox.log"
 PID_FILE = DATA_DIR / "vox.pid"
 
+# LaunchAgent for auto-start at login.
+_AGENT_LABEL = "com.captainvera.vox"
+_AGENT_DIR = Path.home() / "Library" / "LaunchAgents"
+_AGENT_PLIST = _AGENT_DIR / f"{_AGENT_LABEL}.plist"
+
 # Legacy launchd artefacts (from the previous daemon approach).
 _LEGACY_LABEL = "com.vox.agent"
 _LEGACY_PLIST = Path.home() / "Library" / "LaunchAgents" / f"{_LEGACY_LABEL}.plist"
@@ -223,6 +228,43 @@ def _cleanup_legacy_launchd() -> None:
         _LEGACY_PLIST.unlink()
 
 
+# -- autostart (login item via launchd) -----------------------------------
+
+def autostart_on() -> None:
+    """Install a LaunchAgent plist so Vox starts at login."""
+    _AGENT_DIR.mkdir(parents=True, exist_ok=True)
+    plist = {
+        "Label": _AGENT_LABEL,
+        "ProgramArguments": ["/usr/bin/open", "-n", str(APP_PATH)],
+        "RunAtLoad": True,
+    }
+    with open(_AGENT_PLIST, "wb") as f:
+        plistlib.dump(plist, f, fmt=plistlib.FMT_XML)
+
+    # Load immediately so launchd picks it up without re-login.
+    subprocess.run(
+        ["launchctl", "load", str(_AGENT_PLIST)], capture_output=True,
+    )
+    print(f"Autostart enabled. Vox will launch at login.")
+
+
+def autostart_off() -> None:
+    """Remove the LaunchAgent plist."""
+    if _AGENT_PLIST.exists():
+        subprocess.run(
+            ["launchctl", "unload", str(_AGENT_PLIST)], capture_output=True,
+        )
+        _AGENT_PLIST.unlink()
+        print("Autostart disabled.")
+    else:
+        print("Autostart is not enabled.")
+
+
+def autostart_status() -> bool:
+    """Return True if the autostart plist exists."""
+    return _AGENT_PLIST.exists()
+
+
 # -- app bundle -----------------------------------------------------------
 
 def _create_app_bundle() -> Path:
@@ -329,6 +371,7 @@ def status() -> None:
 def uninstall() -> None:
     """Stop vox, remove the .app bundle, and clean up."""
     _cleanup_legacy_launchd()
+    autostart_off()
     _kill_all_vox()
     if APP_PATH.exists():
         shutil.rmtree(APP_PATH)

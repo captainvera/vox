@@ -661,7 +661,7 @@ def test_factory_returns_parakeet_for_parakeet_backend(mock_parakeet_mlx):
     from vox.config import Config
     from vox.parakeet import ParakeetTranscriber
 
-    config = Config(backend="parakeet")
+    config = Config(backend="parakeet", dev_mode=True)
 
     from vox.__main__ import _make_transcriber
 

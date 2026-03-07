@@ -79,8 +79,14 @@ def test_config_backend_default_is_voxtral():
 
 def test_config_backend_can_be_set_to_parakeet():
     from vox.config import Config
-    c = Config(backend="parakeet")
+    c = Config(backend="parakeet", dev_mode=True)
     assert c.backend == "parakeet"
+
+
+def test_config_non_dev_forces_voxtral():
+    from vox.config import Config
+    c = Config(backend="parakeet", dev_mode=False)
+    assert c.backend == "voxtral"
 
 
 def test_config_backend_invalid_raises():
@@ -104,7 +110,7 @@ def test_config_parakeet_model_default():
 def test_config_backend_round_trips(tmp_config):
     from vox.config import Config
 
-    c = Config(backend="parakeet")
+    c = Config(backend="parakeet", dev_mode=True)
     c.save()
 
     loaded = Config.load()

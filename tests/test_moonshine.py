@@ -565,6 +565,6 @@ def test_factory_returns_moonshine_for_moonshine_backend(mock_moonshine):
     from vox.config import Config
     from vox.moonshine import MoonshineTranscriber
 
-    config = Config(backend="moonshine")
+    config = Config(backend="moonshine", dev_mode=True)
     t = _make_transcriber(config)
     assert isinstance(t, MoonshineTranscriber)

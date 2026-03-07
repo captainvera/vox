@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -29,6 +30,12 @@ class Config:
     backend: str = "voxtral"  # "voxtral" | "parakeet" | "moonshine"
     parakeet_model: str = DEFAULT_PARAKEET_MODEL
     moonshine_arch: str = DEFAULT_MOONSHINE_ARCH
+    dev_mode: bool = False  # show all backends in menu; env VOX_DEV=1 overrides
+
+    @property
+    def is_dev(self) -> bool:
+        """True if dev mode is enabled (config or VOX_DEV=1 env var)."""
+        return self.dev_mode or os.environ.get("VOX_DEV") == "1"
 
     def __post_init__(self) -> None:
         if self.mode not in VALID_MODES:
@@ -39,6 +46,9 @@ class Config:
             raise ValueError(
                 f"Invalid backend {self.backend!r}, must be one of {VALID_BACKENDS}"
             )
+        # Non-dev mode: force voxtral backend.
+        if not self.is_dev and self.backend != "voxtral":
+            self.backend = "voxtral"
 
     @classmethod
     def load(cls) -> Config:

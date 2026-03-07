@@ -1,16 +1,17 @@
 """Entry point: `python -m vox` or the `vox` console script.
 
 Subcommands:
-    vox           Run in foreground (default, useful for debugging)
-    vox start     Generate Vox.app + launch via macOS `open`
-    vox stop      Stop the running Vox process
-    vox restart   Stop + start (regenerates .app bundle)
-    vox reload    Alias for restart (picks up source changes)
-    vox status    Show whether vox is running
-    vox logs      Tail the log file
-    vox setup     Download transcription model (interactive)
-    vox update    Update vox to the latest release
-    vox uninstall Remove Vox.app and clean up
+    vox              Run in foreground (default, useful for debugging)
+    vox start        Generate Vox.app + launch via macOS `open`
+    vox stop         Stop the running Vox process
+    vox restart      Stop + start (regenerates .app bundle)
+    vox reload       Alias for restart (picks up source changes)
+    vox status       Show whether vox is running
+    vox logs         Tail the log file
+    vox setup        Download transcription model (interactive)
+    vox update       Update vox to the latest release
+    vox autostart    Show autostart status / enable or disable
+    vox uninstall    Remove Vox.app and clean up
 """
 
 from __future__ import annotations
@@ -237,9 +238,19 @@ def main() -> None:
         _update()
     elif cmd == "uninstall":
         daemon.uninstall()
+    elif cmd == "autostart":
+        subcmd = sys.argv[2] if len(sys.argv) > 2 else None
+        if subcmd == "on":
+            daemon.autostart_on()
+        elif subcmd == "off":
+            daemon.autostart_off()
+        else:
+            enabled = daemon.autostart_status()
+            print(f"Autostart: {'on' if enabled else 'off'}")
+            print("Usage: vox autostart [on|off]")
     else:
         print(f"Unknown command: {cmd}")
-        print("Usage: vox [start|stop|restart|reload|status|logs|setup|update|uninstall]")
+        print("Usage: vox [start|stop|restart|reload|status|logs|setup|update|autostart|uninstall]")
         sys.exit(1)
 
 

@@ -343,6 +343,7 @@ class VoxApp(rumps.App):
         )
 
         # -- backend picker (collapsible model selector) --
+        # Only shown in dev mode; regular users see Voxtral only.
         self._backend_expanded = False
         self._backend_active_label = _BACKEND_LABELS[self._config.backend]
 
@@ -375,19 +376,28 @@ class VoxApp(rumps.App):
             )
             self._backend_alternatives.append(item)
 
-        self.menu = [
-            self._status_item,
-            None,
-            self._pp_toggle,
-            self._type_toggle,
-            self._mode_toggle,
-            None,
-            self._backend_section,
-            self._backend_active,
-            None,
-            self._backend_disclosure,
-            *self._backend_alternatives,
-        ]
+        if self._config.is_dev:
+            self.menu = [
+                self._status_item,
+                None,
+                self._pp_toggle,
+                self._type_toggle,
+                self._mode_toggle,
+                None,
+                self._backend_section,
+                self._backend_active,
+                None,
+                self._backend_disclosure,
+                *self._backend_alternatives,
+            ]
+        else:
+            self.menu = [
+                self._status_item,
+                None,
+                self._pp_toggle,
+                self._type_toggle,
+                self._mode_toggle,
+            ]
 
         # Hide alternatives initially (collapsed).
         for item in self._backend_alternatives:

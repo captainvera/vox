@@ -132,8 +132,27 @@ cfg.write_text(json.dumps(data, indent=2) + '\n')
 "
 success "Default backend: voxtral"
 
+# -- Launch + autostart --------------------------------------------------------
+
+info "Starting vox..."
+vox start
+
+info "Enabling autostart at login..."
+vox autostart on
+
 # -- Done ----------------------------------------------------------------------
 
+echo ""
+success "vox is ready and will start automatically at login!"
+echo ""
+echo "  Stop:       vox stop"
+echo "  Logs:       vox logs"
+echo "  Update:     vox update"
+echo "  Autostart:  vox autostart [on|off]"
+echo ""
+echo "Grant Accessibility to Vox.app (required for hotkey + type-at-cursor):"
+echo "  System Settings → Privacy & Security → Accessibility"
+echo "  Press Cmd+Shift+G → type ~/Applications → select Vox.app"
 echo ""
 success "vox is ready!"
 echo ""

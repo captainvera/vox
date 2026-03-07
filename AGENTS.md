@@ -8,13 +8,13 @@ Menubar STT for macOS. Record voice via hotkey, transcribe offline on Apple Sili
 
 **Entry points & wiring:**
 - `src/vox/__main__.py` — CLI dispatcher + app bootstrap. `_make_transcriber()` (line 53) is the backend factory. `_run_foreground()` (line 71) wires Config → Recorder → Transcriber → Formatter → VoxApp.
-- `src/vox/daemon.py` — .app bundle generation (compiled C launcher + Info.plist), start/stop/restart lifecycle. The C source is `_LAUNCHER_C` (line 48).
+- `src/vox/daemon.py` — .app bundle generation (compiled C launcher + Info.plist), start/stop/restart lifecycle, autostart via LaunchAgent plist. The C source is `_LAUNCHER_C` (line 48).
 
 **Core app:**
 - `src/vox/app.py` — rumps menubar app (~790 lines). State machine at `_set_state()` (line 464), hotkey at `_start_hotkey()` (line 431), streaming lifecycle at `_start_streaming()` / `_stop_streaming()` / `_finalize_streaming()` (lines 511-636), batch path at `_stop_and_transcribe()` / `_transcribe_worker()` (lines 639-685). Backend hot-swap at `_reload_backend()` (line 784).
 - `src/vox/protocols.py` — `Transcriber` and `TranscriptionStream` runtime-checkable protocols. All backends implement these. Read this first to understand the contract.
 - `src/vox/recorder.py` — mic capture via sounddevice. `on_chunk` callback enables streaming mode. Thread-safe via lock.
-- `src/vox/config.py` — persistent settings dataclass at `~/.config/vox/config.json`. `VALID_BACKENDS`, `VALID_MODES`.
+- `src/vox/config.py` — persistent settings dataclass at `~/.config/vox/config.json`. `VALID_BACKENDS`, `VALID_MODES`. `dev_mode` flag gates non-Voxtral backends (env `VOX_DEV=1` overrides).
 - `src/vox/formatter.py` — rule-based text cleanup (strip fillers, fix caps, punctuation). Pure functions, no state.
 
 **Backends (each implements `Transcriber` + `TranscriptionStream`):**
@@ -24,7 +24,7 @@ Menubar STT for macOS. Record voice via hotkey, transcribe offline on Apple Sili
 
 **Other:**
 - `src/vox/icons/` — SVG template images (logo.svg idle, mic.svg recording, wave.svg transcribing)
-- `tests/` — 214 tests across 8 files. `conftest.py` mocks rumps/AppKit/Foundation for headless testing.
+- `tests/` — 215 tests across 8 files. `conftest.py` mocks rumps/AppKit/Foundation for headless testing.
 - `tests/test_install.sh` — bash test for `install.sh` with mocked externals.
 - `docs/dev-plans/` — numbered dev plans. 001 (core) done, 002 (moonshine) done, 003 (voxtral streaming) mostly done.
 
@@ -57,7 +57,10 @@ vox restart    # stop + start
 vox reload     # alias for restart (picks up source changes)
 vox status     # show if running + PID
 vox logs       # tail -f the log file
-vox uninstall  # stop + remove Vox.app
+vox autostart  # show autostart status
+vox autostart on   # enable launch at login (launchd plist)
+vox autostart off  # disable launch at login
+vox uninstall  # stop + remove Vox.app + remove autostart plist
 vox            # run in foreground (for debugging)
 ```
 
@@ -106,5 +109,4 @@ Editable install — source changes take effect on `vox reload`. No reinstall ne
 
 ## What's missing
 
-- Auto-start at login (launchd plist)
 - Parakeet model download fails silently when `hf_hub_download()` errors (SSL/network) — `parakeet_mlx.from_pretrained()` falls back to treating the HF repo ID as a local path. Upstream bug in parakeet_mlx, not vox.
