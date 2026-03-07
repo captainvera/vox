@@ -1,6 +1,6 @@
 # 002 — Fix Moonshine streaming transcription
 
-Status: in progress
+Status: done
 Backend: moonshine-voice (C++ core, ONNX Runtime, Python ctypes bindings)
 Model: medium-streaming (245M params, 6.65% WER)
 Files: `src/vox/moonshine.py`, `tests/test_moonshine.py`

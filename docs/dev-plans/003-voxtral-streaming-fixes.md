@@ -1,6 +1,6 @@
 # 003 — Fix Voxtral streaming: freeze, fan noise, silence handling
 
-Status: planned
+Status: mostly done (Phase 1-2 complete, Phase 3 partial, Phase 4 minor cleanup remaining)
 Model: Voxtral-Mini-4B-Realtime-6bit (voxmlx, MLX)
 Files: `src/vox/voxtral_stream.py`, `tests/test_voxtral_stream.py`
 
