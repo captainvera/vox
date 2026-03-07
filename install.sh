@@ -13,7 +13,6 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-BOLD='\033[1m'
 NC='\033[0m'
 
 info()    { printf "${BLUE}==>${NC} %s\n" "$1"; }
@@ -132,38 +131,6 @@ data['mode'] = 'transcript'
 cfg.write_text(json.dumps(data, indent=2) + '\n')
 "
 success "Default backend: voxtral"
-        fi
-
-        success "Voxtral model downloaded to ${VOXTRAL_DIR}"
-    fi
-
-    # Set voxtral as default backend
-    mkdir -p "$HOME/.config/vox"
-    python3 -c "
-import json
-from pathlib import Path
-cfg = Path.home() / '.config' / 'vox' / 'config.json'
-data = json.loads(cfg.read_text()) if cfg.exists() else {}
-data['backend'] = 'voxtral'
-data['mode'] = 'transcript'
-cfg.write_text(json.dumps(data, indent=2) + '\n')
-"
-    success "Default backend: voxtral"
-
-else
-    # -- Parakeet (default) ----------------------------------------------------
-    mkdir -p "$HOME/.config/vox"
-    python3 -c "
-import json
-from pathlib import Path
-cfg = Path.home() / '.config' / 'vox' / 'config.json'
-data = json.loads(cfg.read_text()) if cfg.exists() else {}
-data['backend'] = 'parakeet'
-data['mode'] = 'transcript'
-cfg.write_text(json.dumps(data, indent=2) + '\n')
-"
-    success "Default backend: parakeet (model downloads on first launch)"
-fi
 
 # -- Done ----------------------------------------------------------------------
 
