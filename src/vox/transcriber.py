@@ -76,7 +76,14 @@ class VoxtralTranscriber:
     ) -> TranscriptionStream:
         """Create a streaming transcription session."""
         self.load()
-        log.info("Creating VoxtralStream (prefix_len=%d)", len(self._prompt_tokens))
+        encoder_window = getattr(
+            self._model.encoder, "sliding_window", None
+        )
+        log.info(
+            "Creating VoxtralStream (prefix_len=%d, encoder_window=%s)",
+            len(self._prompt_tokens),
+            encoder_window,
+        )
         return VoxtralStream(
             model=self._model,
             sp=self._sp,
@@ -85,6 +92,7 @@ class VoxtralTranscriber:
             prefix_len=len(self._prompt_tokens),
             eos_token_id=self._sp.eos_id,
             on_token=on_token,
+            encoder_window=encoder_window,
         )
 
     def _transcribe_chunk(self, audio: np.ndarray, sample_rate: int) -> str:

@@ -43,6 +43,7 @@ class VoxtralStream:
         eos_token_id: int,
         on_token: Callable[[str], None],
         temperature: float = 0.0,
+        encoder_window: int | None = None,
     ) -> None:
         # Shared model references (not owned, from VoxtralTranscriber)
         self._model = model
@@ -53,6 +54,13 @@ class VoxtralStream:
         self._eos_token_id = eos_token_id
         self._on_token = on_token
         self._temperature = temperature
+
+        # Encoder window: the encoder's trained sliding_window size.
+        # When the encoder KV cache reaches this many frames, reset
+        # encoder state to prevent RoPE positional drift.  The decoder
+        # (KV cache, last token) is preserved for seamless output.
+        # None = no periodic resets (legacy behavior).
+        self._encoder_window = encoder_window
 
         self._n_layers = len(model.language_model.layers)
 
@@ -94,6 +102,7 @@ class VoxtralStream:
         self._tokens_emitted = 0
         self._eos_count = 0
         self._encode_calls = 0
+        self._encoder_resets = 0
         self._feed_calls = 0
         self._total_audio_samples = 0
 
@@ -105,7 +114,10 @@ class VoxtralStream:
             target=self._process_loop, daemon=True
         )
         self._thread.start()
-        log.info("Stream started (prefix_len=%d, eos_id=%d)", prefix_len, eos_token_id)
+        log.info(
+            "Stream started (prefix_len=%d, eos_id=%d, encoder_window=%s)",
+            prefix_len, eos_token_id, encoder_window,
+        )
 
     # -- Public API (TranscriptionStream protocol) --
 
@@ -122,11 +134,12 @@ class VoxtralStream:
         elapsed = time.monotonic() - self._start_time
         log.info(
             "Stream flush requested after %.1fs "
-            "(tokens=%d, eos=%d, encodes=%d, feeds=%d, audio=%.1fs)",
+            "(tokens=%d, eos=%d, encodes=%d, enc_resets=%d, feeds=%d, audio=%.1fs)",
             elapsed,
             self._tokens_emitted,
             self._eos_count,
             self._encode_calls,
+            self._encoder_resets,
             self._feed_calls,
             self._total_audio_samples / 16_000,
         )
@@ -412,6 +425,61 @@ class VoxtralStream:
         self._first_cycle = True
         self._prefilled = False
 
+    def _reset_encoder_state(self) -> None:
+        """Reset encoder state while preserving the decoder.
+
+        The voxmlx encoder was trained with a sliding_window of 750
+        positions but the streaming path creates its KV cache with
+        max_size=100,000 and never applies a sliding-window mask.
+        After ~encoder_window frames the RoPE positional encodings
+        leave the training distribution and the encoder produces
+        degraded embeddings that decode to empty tokens.
+
+        This method resets all encoder-side state (conv tails, encoder
+        KV cache, downsampling buffer, mel overlap) and the associated
+        bookkeeping counters.  The next processing-loop iteration will
+        start a fresh encoder segment with left-pad silence, while the
+        decoder continues with its warm KV cache for seamless text
+        output.  Undecoded embeddings from the old encoder are
+        discarded (at most a few 80ms frames at the boundary).
+        """
+        self._encoder_resets += 1
+        encoder_offset = (
+            self._encoder_cache[0].offset
+            if self._encoder_cache
+            else 0
+        )
+        log.info(
+            "Encoder reset #%d (encoder_offset=%d, window=%s, "
+            "audio_fed=%.1fs, tokens_emitted=%d)",
+            self._encoder_resets,
+            encoder_offset,
+            self._encoder_window,
+            self._n_audio_samples_fed / 16_000,
+            self._tokens_emitted,
+        )
+
+        # Clear encoder pipeline state.
+        self._audio_tail = None
+        self._conv1_tail = None
+        self._conv2_tail = None
+        self._encoder_cache = None
+        self._ds_buf = None
+
+        # Discard stale embeds from the old encoder segment.
+        self._audio_embeds = None
+
+        # Reset counters so safe_total / n_decodable math stays
+        # correct for the new segment.
+        self._n_audio_samples_fed = 0
+        self._n_total_decoded = 0
+
+        # Next encode will add left-pad silence for the fresh segment.
+        self._first_cycle = True
+
+        # Decoder state intentionally preserved:
+        #   _cache, _y, _prefilled, _accumulated
+
     # -- Background processing thread --
 
     def _process_loop(self) -> None:
@@ -521,6 +589,19 @@ class VoxtralStream:
                     self._n_audio_samples_fed += n_feed
                     self._encode_chunk(chunk)
 
+                # Check if encoder cache has exceeded its trained
+                # sliding window.  If so, reset encoder state to
+                # prevent RoPE positional drift.  Pending audio is
+                # kept and will be re-encoded in the next iteration.
+                if (
+                    self._encoder_window is not None
+                    and self._encoder_cache is not None
+                    and self._encoder_cache[0].offset
+                    >= self._encoder_window
+                ):
+                    self._reset_encoder_state()
+                    continue
+
                 if self._audio_embeds is None:
                     time.sleep(0.02)
                     continue
@@ -539,12 +620,13 @@ class VoxtralStream:
             elapsed = time.monotonic() - self._start_time
             log.info(
                 "Processing thread exited after %.1fs "
-                "(loops=%d, tokens=%d, eos=%d, encodes=%d, running=%s)",
+                "(loops=%d, tokens=%d, eos=%d, encodes=%d, enc_resets=%d, running=%s)",
                 elapsed,
                 loop_count,
                 self._tokens_emitted,
                 self._eos_count,
                 self._encode_calls,
+                self._encoder_resets,
                 self._running,
             )
             self._done_event.set()

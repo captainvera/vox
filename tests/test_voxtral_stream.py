@@ -17,6 +17,7 @@ import pytest
 
 def test_voxtral_stream_importable():
     from vox.voxtral_stream import VoxtralStream
+
     assert VoxtralStream is not None
 
 
@@ -52,37 +53,32 @@ def mock_model():
     }
 
 
-def _make_stream(mock_model, on_token=None, start_loop=False):
+def _make_stream(mock_model, on_token=None, start_loop=False, encoder_window=None):
     """Create a VoxtralStream, optionally suppressing the bg thread."""
     from vox.voxtral_stream import VoxtralStream
 
     if on_token is None:
         on_token = MagicMock()
 
+    kwargs = dict(
+        model=mock_model["model"],
+        sp=mock_model["sp"],
+        text_embeds=mock_model["text_embeds"],
+        t_cond=mock_model["t_cond"],
+        prefix_len=mock_model["prefix_len"],
+        eos_token_id=mock_model["eos_token_id"],
+        on_token=on_token,
+        encoder_window=encoder_window,
+    )
+
     if start_loop:
-        return VoxtralStream(
-            model=mock_model["model"],
-            sp=mock_model["sp"],
-            text_embeds=mock_model["text_embeds"],
-            t_cond=mock_model["t_cond"],
-            prefix_len=mock_model["prefix_len"],
-            eos_token_id=mock_model["eos_token_id"],
-            on_token=on_token,
-        )
+        return VoxtralStream(**kwargs)
 
     # Suppress the background processing thread for unit tests.
     # patch.object replaces the method with a no-op mock; the thread
     # starts, calls the mock (returns immediately), and exits.
     with patch.object(VoxtralStream, "_process_loop"):
-        stream = VoxtralStream(
-            model=mock_model["model"],
-            sp=mock_model["sp"],
-            text_embeds=mock_model["text_embeds"],
-            t_cond=mock_model["t_cond"],
-            prefix_len=mock_model["prefix_len"],
-            eos_token_id=mock_model["eos_token_id"],
-            on_token=on_token,
-        )
+        stream = VoxtralStream(**kwargs)
     # Manually signal done since the mock loop won't set it
     stream._done_event.set()
     return stream
@@ -317,7 +313,7 @@ def test_silence_pause_resumes_on_loud_audio(mock_model):
 
     # Drain audio in process loop to trigger RMS check.
     new_audio = stream._drain_audio()
-    rms = float(np.sqrt(np.mean(new_audio ** 2)))
+    rms = float(np.sqrt(np.mean(new_audio**2)))
     assert rms > stream._speech_rms_threshold
 
     # Simulate what process loop does: check RMS and unpause.
@@ -342,7 +338,7 @@ def test_silence_pause_stays_paused_on_quiet_audio(mock_model):
     stream.feed(quiet_chunk)
 
     new_audio = stream._drain_audio()
-    rms = float(np.sqrt(np.mean(new_audio ** 2)))
+    rms = float(np.sqrt(np.mean(new_audio**2)))
     assert rms < stream._speech_rms_threshold
 
     # RMS check should NOT unpause.
@@ -351,3 +347,96 @@ def test_silence_pause_stays_paused_on_quiet_audio(mock_model):
             stream._silence_paused = False
 
     assert stream._silence_paused is True
+
+
+# -- Encoder window reset tests -------------------------------------------
+
+
+def test_encoder_window_stored(mock_model):
+    """encoder_window parameter should be stored on the stream."""
+    stream = _make_stream(mock_model, encoder_window=750)
+    assert stream._encoder_window == 750
+
+
+def test_encoder_window_none_by_default(mock_model):
+    """Without encoder_window, no periodic resets are configured."""
+    stream = _make_stream(mock_model)
+    assert stream._encoder_window is None
+
+
+def test_reset_encoder_state_clears_encoder(mock_model):
+    """_reset_encoder_state should clear all encoder-side state."""
+    stream = _make_stream(mock_model, encoder_window=100)
+
+    # Simulate warm encoder state.
+    stream._audio_tail = np.ones(240, dtype=np.float32)
+    stream._conv1_tail = MagicMock(name="conv1_tail")
+    stream._conv2_tail = MagicMock(name="conv2_tail")
+    stream._encoder_cache = [MagicMock(name="enc_cache", offset=500)]
+    stream._ds_buf = MagicMock(name="ds_buf")
+    stream._audio_embeds = MagicMock(name="audio_embeds")
+    stream._n_audio_samples_fed = 100_000
+    stream._n_total_decoded = 80
+    stream._first_cycle = False
+
+    stream._reset_encoder_state()
+
+    assert stream._audio_tail is None
+    assert stream._conv1_tail is None
+    assert stream._conv2_tail is None
+    assert stream._encoder_cache is None
+    assert stream._ds_buf is None
+    assert stream._audio_embeds is None
+    assert stream._n_audio_samples_fed == 0
+    assert stream._n_total_decoded == 0
+    assert stream._first_cycle is True
+
+
+def test_reset_encoder_state_preserves_decoder(mock_model):
+    """_reset_encoder_state must keep decoder KV cache and last token."""
+    stream = _make_stream(mock_model, encoder_window=100)
+
+    # Simulate warm decoder state.
+    fake_cache = [MagicMock(name="dec_cache")]
+    fake_y = MagicMock(name="last_token")
+    stream._cache = fake_cache
+    stream._y = fake_y
+    stream._prefilled = True
+    stream._accumulated = ["hello ", "world"]
+
+    # Also set encoder state so reset has something to clear.
+    stream._encoder_cache = [MagicMock(offset=500)]
+
+    stream._reset_encoder_state()
+
+    assert stream._cache is fake_cache
+    assert stream._y is fake_y
+    assert stream._prefilled is True
+    assert stream._accumulated == ["hello ", "world"]
+
+
+def test_reset_encoder_state_preserves_pending_audio(mock_model):
+    """Pending audio should survive encoder resets (re-encoded next cycle)."""
+    stream = _make_stream(mock_model, encoder_window=100)
+    stream._encoder_cache = [MagicMock(offset=500)]
+    pending = np.ones(5000, dtype=np.float32)
+    stream._pending_audio = pending
+
+    stream._reset_encoder_state()
+
+    # pending_audio is untouched — it will be re-encoded with left pad.
+    assert np.array_equal(stream._pending_audio, pending)
+
+
+def test_reset_encoder_increments_counter(mock_model):
+    """Each encoder reset should bump the stats counter."""
+    stream = _make_stream(mock_model, encoder_window=100)
+    stream._encoder_cache = [MagicMock(offset=500)]
+    assert stream._encoder_resets == 0
+
+    stream._reset_encoder_state()
+    assert stream._encoder_resets == 1
+
+    stream._encoder_cache = [MagicMock(offset=500)]
+    stream._reset_encoder_state()
+    assert stream._encoder_resets == 2
