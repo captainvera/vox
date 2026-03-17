@@ -20,11 +20,22 @@ This installs `vox` via [uv](https://docs.astral.sh/uv/), downloads the Voxtral 
 
 After install, grant Accessibility to **Vox.app**:
 
-> System Settings > Privacy & Security > Accessibility
->
-> Press `Cmd+Shift+G`, type `~/Applications`, select **Vox.app**
+> System Settings > Privacy & Security > Accessibility > click **+** > navigate to `~/Applications` > select **Vox.app**
 
 ## Usage
+
+**Hotkey:** `Option+Space` — press to start recording, press again to stop and transcribe.
+
+Everything else is controlled from the menubar icon. Click it to change mode, toggle type-at-cursor, switch backends, or quit.
+
+### Modes
+
+- **Transcript** (default): Record all audio, then batch-transcribe. Result goes to clipboard (or types at cursor if enabled).
+- **Realtime**: Transcribe while recording, typing tokens at cursor as they're decoded.
+
+## CLI reference
+
+You shouldn't need the terminal for normal use. These commands are here for debugging and management.
 
 | Command | Description |
 |---|---|
@@ -36,20 +47,13 @@ After install, grant Accessibility to **Vox.app**:
 | `vox autostart on\|off` | Enable/disable launch at login |
 | `vox uninstall` | Stop + remove app + remove autostart |
 
-**Default hotkey:** `Ctrl+Shift+Space` — press to start recording, press again to stop and transcribe.
-
-### Modes
-
-- **Transcript** (default): Record all audio, then batch-transcribe. Result goes to clipboard (or types at cursor if enabled).
-- **Realtime**: Transcribe while recording, typing tokens at cursor as they're decoded. Toggle via the menubar menu.
-
-## Manual install
+### Manual install
 
 If you prefer not to use the install script:
 
 ```bash
 # Install vox
-uv tool install "vox @ git+https://github.com/captainvera/vox@v0.5.0" --python 3.13
+uv tool install "vox @ git+https://github.com/captainvera/vox@v0.5.1" --python 3.13
 
 # Download the Voxtral model (~6.8 GB)
 git clone https://huggingface.co/mlx-community/Voxtral-Mini-4B-Realtime-6bit ~/models/Voxtral-Mini-4B-Realtime-6bit
@@ -58,13 +62,13 @@ git clone https://huggingface.co/mlx-community/Voxtral-Mini-4B-Realtime-6bit ~/m
 vox start
 ```
 
-## Dev backends
+### Dev backends
 
 Vox supports alternative backends (Parakeet 600M, Moonshine 245M) behind a dev flag. These are not installed by default.
 
 ```bash
 # Install with alt backends
-uv tool install "vox[alt-backends] @ git+https://github.com/captainvera/vox@v0.5.0" --python 3.13
+uv tool install "vox[alt-backends] @ git+https://github.com/captainvera/vox@v0.5.1" --python 3.13
 
 # Enable dev mode
 VOX_DEV=1 vox start
