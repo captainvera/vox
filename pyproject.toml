@@ -8,6 +8,10 @@ dependencies = [
     "voxmlx>=0.0.2",
     "sounddevice>=0.5.0",
     "soundfile>=0.13.0",
+]
+
+[project.optional-dependencies]
+alt-backends = [
     "parakeet-mlx>=0.3.0",
     "moonshine-voice>=0.0.40",
 ]
